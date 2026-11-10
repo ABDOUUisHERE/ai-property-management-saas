@@ -1,10 +1,10 @@
 # Suivi P01 — fondations locales
 
-Date : 2026-11-10. Autorisation : validation utilisateur du cadrage/backlog (« je valide »), puis reprise de Docker Desktop confirmée par l'utilisateur. P02 n'est pas commencée. Aucune publication distante ni dépense AWS autorisée.
+Date : 2026-11-10. Autorisation : validation du cadrage/backlog (« je valide »), reprise de Docker Desktop, puis publication GitHub autorisée par l'utilisateur (« oui »). La fusion de la PR, P02 et toute dépense AWS restent hors de l'autorisation actuelle.
 
 ## Lot et plan
 
-Issue locale de référence : **T001/T002, puis T005–T009**. Finaliser conventions/décisions → initialiser Git → préparer et éprouver Auth/Docker → verrouiller outils/configuration → ajouter contrôles et workflow CI. Les templates de publication sont préparés localement pour T003/T004 ; les actions GitHub restent distinctes.
+Références : **T001/T002, puis T005–T009**, et publication T003/T004 après autorisation. Conventions/décisions → Git → Auth/Docker → outils/configuration → contrôles/CI → dépôt, jalons, Issues et PR. Les ressources publiées sont listées ci-dessous.
 
 ## État des tâches
 
@@ -12,13 +12,13 @@ Issue locale de référence : **T001/T002, puis T005–T009**. Finaliser convent
 | --- | --- | --- |
 | T001 | Réalisée localement | CONTRIBUTING, règles actualisées et six ADRs acceptés ; liens contrôlés |
 | T002 | Réalisée localement | Git autonome, main et branche `feat/t001-local-foundations` ; identité associée au compte ; secrets exclus ; commits vérifiés après contrôles |
-| T003 | Préparée, publication en attente | Compte connecté `ABDOUUisHERE` ; proposition dépôt privé `ai-property-management-saas` ; licence non choisie |
-| T004 | Préparée, publication en attente | Backlog validé, templates Issue/PR et jalons proposés ; aucune URL distante inventée |
+| T003 | Publiée, options documentées | [Dépôt privé vérifié](https://github.com/ABDOUUisHERE/ai-property-management-saas), `origin`, main et branche de travail, neuf jalons ; licence ouverte et Project non configuré |
+| T004 | Publiée, en revue | Neuf Issues P01 avec dépendances, labels et milestone ; [PR #10](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10) ouverte |
 | T005 | Vérifiée localement | Signup, Mailpit, confirmation, login, ES256/JWKS, refresh/logout réussis sur environnements principal et neuf |
 | T006 | Vérifiée localement | Six services healthy, réseaux/volumes séparés, ports loopback, images par digest, rôles DB restreints |
 | T007 | Réalisée localement | Python 3.12.12 via uv, lockfile, secrets locaux générés/ignorés ; frontend reporté à P02 |
 | T008 | Vérifiée localement | Six services démarrés sur volumes entièrement neufs ; smoke complet ; persistance PostgreSQL/Redis/S3 après redémarrage prouvée |
-| T009 | Vérifié localement, distant non exécuté | Workflow CI préparé ; lint/format, tests d'outillage et Gitleaks ; aucune exécution Actions revendiquée |
+| T009 | Vérifiée localement et sur Actions | Jobs [quality et infrastructure réussis](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42837783466) sur `a4f4f01` : 15 tests et smoke des six services |
 
 ## Vérifications et observations
 
@@ -39,10 +39,26 @@ La recette a été répétée avec `--env-file .local/fresh-validation.env`, pro
 
 Résultats : **15 tests d'outillage réussis** ; Ruff lint/format réussis ; liens locaux, 120 tâches et dépendances valides ; Gitleaks avec test du détecteur réussi ; six services healthy et parcours Auth/S3/DB/Redis réussi. Au repos lors d'une mesure ponctuelle, les six conteneurs principaux utilisaient environ 277 MiB au total ; ce n'est pas une garantie de capacité en charge.
 
-La syntaxe du workflow Actions a été vérifiée avec actionlint **1.7.12**, sans erreur. Les GitHub Actions n'ont pas encore été exécutées à distance. La façade de session, RLS métier, OpenAPI, Alembic, seed et tests métier restent à implémenter à partir de P02/P03.
+La syntaxe du workflow Actions a été vérifiée avec actionlint **1.7.12**, sans erreur. La CI distante a ensuite réussi sur `a4f4f01`, avec preuves des 15 tests, du scanner et du parcours Auth/S3/DB/Redis dans ses logs. Les checks du dernier HEAD sont consultables dans la PR. La façade de session, RLS métier, OpenAPI, Alembic, seed et tests métier restent à implémenter à partir de P02/P03.
 
 ## Portée restante
 
-Le volet technique local P01 est vérifié. T003/T004 attendent une autorisation de création/publication selon [le plan concret](../github-publication-plan.md). La licence reste à choisir, sans bloquer les essais locaux. La phase complète conserve ce reliquat GitHub : ne pas déclarer ces deux tâches réalisées. Après P01, l'utilisateur doit autoriser P02 selon la roadmap.
+Le volet technique P01 est vérifié et publié. La PR et les neuf Issues restent ouvertes pour revue ; aucune fusion n'est effectuée. La protection obligatoire de `main` a été refusée avec HTTP 403 pour ce dépôt privé et l'offre actuelle ; le dépôt reste privé. Le board Project optionnel exige un scope d'écriture absent. La licence reste à choisir. L'utilisateur doit autoriser la fusion et P02 selon le périmètre souhaité.
 
-Activité distante à ce stade : **0 dépôt créé, 0 Issue publiée, 0 PR, 0 push**. L'historique local comprend un commit de référence sur `main` (`26f8caf`) et le lot de fondations sur `feat/t001-local-foundations`, identifiable par `git log`. Ce dernier commit est créé après les contrôles finaux ; son hash n'est pas inscrit dans son propre contenu.
+Activité réelle : **1 dépôt privé créé, 9 jalons, 9 Issues et 1 PR publiée, 0 fusion**. Les deux branches initiales sont envoyées : `main` (`26f8caf`) et `feat/t001-local-foundations` (`a4f4f01` pour les fondations). Ce suivi est actualisé dans un commit documentaire distinct. Les contributions visibles sur le profil GitHub ne sont pas déduites de ces nombres.
+
+## Ressources GitHub vérifiées
+
+| Tâche | Issue |
+| --- | --- |
+| T001 | [#1](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/1) |
+| T002 | [#2](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/2) |
+| T003 | [#3](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/3) |
+| T004 | [#4](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/4) |
+| T005 | [#5](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/5) |
+| T006 | [#6](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/6) |
+| T007 | [#7](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/7) |
+| T008 | [#8](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/8) |
+| T009 | [#9](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/9) |
+
+[Jalons P01–P09](https://github.com/ABDOUUisHERE/ai-property-management-saas/milestones) ; [PR #10](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10).

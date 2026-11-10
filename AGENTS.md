@@ -4,7 +4,9 @@
 
 Le cadrage, le backlog et les recommandations d'architecture ont été validés par l'utilisateur le 2026-11-10 (« je valide »). La phase P01 est autorisée : conventions, Git local, dépendances Docker et CI minimale. Consulter [le suivi P01](docs/progress/phase-01.md) pour les résultats réels et les paramètres encore ouverts. Attendre l'accord de l'utilisateur avant de commencer P02 ou une phase suivante.
 
-Créer un dépôt distant, publier des Issues, pousser, ouvrir une PR ou fusionner exige une autorisation couvrant l'action. Conserver les autorisations déjà accordées et leur périmètre ; ne pas les redemander pour chaque incrément couvert. Le backlog est validé ; sa publication attend une autorisation distante. AWS reste optionnel et non autorisé au déploiement.
+L'utilisateur a autorisé la publication GitHub le 2026-11-10 (« oui ») : dépôt privé `ABDOUUisHERE/ai-property-management-saas`, push de `main` et `feat/t001-local-foundations`, neuf jalons, Issues P01 et PR de revue du lot validé. Poursuivre les mises à jour nécessaires à ce lot sans redemander cette autorisation. Les liens réels figurent dans [le suivi P01](docs/progress/phase-01.md).
+
+Toute fusion, publication hors de ce périmètre, nouvelle phase ou dépense AWS demande une autorisation couvrant l'action. Conserver les accords déjà obtenus. La protection obligatoire de `main` est indisponible avec l'offre GitHub actuelle pour ce dépôt privé ; appliquer le workflow de PR/revue sans changer la visibilité.
 
 ## Avant un changement
 
