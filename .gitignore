@@ -1,0 +1,39 @@
+# Local secrets and generated credentials
+.env
+.env.*
+!.env.example
+.local/
+.cache/
+*.pem
+*.key
+
+# Python and tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Frontend and generated reports
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# Local editor and OS state
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Infrastructure state and logs
+*.log
+*.tfstate
+*.tfstate.*
+.terraform/
+crash.log

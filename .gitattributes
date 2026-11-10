@@ -1,0 +1,16 @@
+* text=auto
+*.md text eol=lf whitespace=-blank-at-eol
+/.editorconfig text eol=lf
+/.gitattributes text eol=lf
+/.gitignore text eol=lf
+/.env.example text eol=lf
+/.python-version text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.ps1 text eol=crlf
