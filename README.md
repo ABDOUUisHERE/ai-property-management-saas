@@ -2,9 +2,9 @@
 
 Plateforme de gestion de locations de courte durée pour plusieurs entreprises indépendantes : biens et unités, voyageurs, réservations, paiements de test, ménage, maintenance et reporting. L'assistant IA est une extension V3, sans dépendance du MVP.
 
-**État au 10 novembre 2026 : cadrage validé, fondations P01 publiées et en revue.** Le dépôt possède les documents de conception, un environnement Docker de six services, des outils de bootstrap, leurs tests et une CI GitHub Actions exécutée avec succès. FastAPI, React et les fonctionnalités métier commencent en P02 et ne sont pas encore implémentés. Aucun déploiement AWS n'est réalisé. Les preuves réelles sont consignées dans [le suivi P01](docs/progress/phase-01.md).
+**État au 10 novembre 2026 : P01 fusionnée, architecture P02 exécutable et vérifiée localement.** FastAPI, React/TypeScript, Alembic et les processus outbox/worker sont disponibles. Compose démarre dix processus persistants et un job de migration. L'authentification applicative et les fonctionnalités métier commencent en P03 et au-delà. Aucun déploiement AWS n'est réalisé. Voir [le suivi P01](docs/progress/phase-01.md) et [les preuves et limites P02](docs/progress/phase-02.md).
 
-[Dépôt privé](https://github.com/ABDOUUisHERE/ai-property-management-saas) · [PR des fondations](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10) · [CI validée sur a4f4f01](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42837783466)
+[Dépôt GitHub](https://github.com/ABDOUUisHERE/ai-property-management-saas) · [PR P01 fusionnée](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10) · [CI P01 après fusion](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42842746766)
 
 ## Référence et documents
 
@@ -19,26 +19,30 @@ Plateforme de gestion de locations de courte durée pour plusieurs entreprises i
 - [Publication GitHub et limites de configuration](docs/github-publication-plan.md).
 - [Vocabulaire métier](GLOSSARY.md) et [règles Codex](AGENTS.md).
 
-## Architecture proposée
+## Architecture retenue
 
-Monolithe modulaire FastAPI, frontend React/TypeScript et API `/api/v1`. PostgreSQL porte les transactions et contraintes d'intégrité. Supabase Auth est proposé comme unique autorité d'authentification ; les organisations et permissions restent sous contrôle du backend. Redis sert aux tâches asynchrones et au cache, sans décider de l'attribution d'une unité. Stockage objet privé S3-compatible. Stripe Checkout fonctionne exclusivement en mode test dans le MVP.
+Monolithe modulaire FastAPI, frontend React/TypeScript et contrats `/api/v1`. PostgreSQL porte les transactions et contraintes d'intégrité. Supabase Auth est l'autorité d'identité retenue ; son instance locale est vérifiée, sa façade applicative arrive en P03. Redis transporte les tâches ; PostgreSQL conserve l'outbox et les reçus durables. Le stockage S3 est privé. Stripe sera intégré exclusivement en mode test.
 
 Le déploiement AWS est optionnel et conditionné à la disponibilité des accès, du budget et à une validation explicite. Les intégrations de canaux V2 utilisent d'abord un simulateur ; aucune intégration officielle Airbnb/Booking.com n'est revendiquée.
 
-## Démarrer les dépendances locales
+## Démarrer l'application locale
 
-Prérequis : Git, uv et Docker Desktop/Engine avec Compose et moteur Linux actif. Depuis la racine :
+Prérequis : Git, uv et Docker Desktop/Engine avec Compose et moteur Linux actif. Node 24/npm 11 sont nécessaires pour développer le frontend hors Docker. Depuis la racine :
 
 ```powershell
 uv sync --locked
 uv run python scripts/dev.py init
 uv run python scripts/dev.py up
+uv sync --project backend --locked
+uv run python scripts/application.py smoke
 uv run python scripts/dev.py smoke
 ```
 
 `init` génère les credentials locaux dans `.env`, ignoré par Git, et préserve les valeurs existantes. `up` lance Compose et attend les sondes. Après l'initialisation, `docker compose up --build` est également utilisable. Le [runbook](docs/runbooks/local-development.md) décrit les ports, l'arrêt, la reprise, les contrôles et les limites.
 
-Services : PostgreSQL métier, PostgreSQL Auth isolé, Supabase Auth, Redis, Mailpit et stockage S3-compatible RustFS. Mailpit : `http://127.0.0.1:18025`. Auth : `http://127.0.0.1:19999/health`. Aucun compte cloud requis ; tous les ports publiés sont liés à la boucle locale.
+Interface : `http://127.0.0.1:18173`. Documentation API : `http://127.0.0.1:18000/api/v1/docs`. Mailpit : `http://127.0.0.1:18025`. Auth : `http://127.0.0.1:19999/health`. Aucun compte cloud requis ; les ports publiés sont liés à la boucle locale. Le [runbook applicatif](docs/runbooks/application-development.md) décrit migrations, tests et outbox ; les [contrats API](docs/api/README.md) décrivent la génération des types frontend.
+
+![Interface P02, écran d'accueil sans données métier](docs/screenshots/p02-desktop.png)
 
 ## Validation et limites actuelles
 
@@ -48,12 +52,15 @@ uv run ruff format --check .
 uv run python scripts/check_repository.py
 uv run pytest
 uv run python scripts/scan_secrets.py
+uv run python scripts/application.py test --broker-recovery
 ```
 
-Les 15 tests actuels concernent l'outillage et la validation de configuration/JWT. La recette réelle couvre Auth/email/JWKS/session, rôles PostgreSQL, Redis et objets privés S3. Les jobs GitHub Actions `quality` et `infrastructure` ont réussi sur `a4f4f01`, avec 15 tests et le smoke réel des six services. Les checks du dernier HEAD sont consultables dans la PR.
+Validation locale P02 : **16 tests d'outillage, 15 tests backend, 9 tests frontend et 3 tests navigateur** réussis ; lint, format, mypy strict, TypeScript, build, audit npm et scan de secrets vérifiés. Les tests backend utilisent une base PostgreSQL jetable et vérifient migrations, contexte/RLS de l'outbox, rollback, consommation concurrente et récupération après perte réelle d'un message Redis. Les tests navigateur couvrent clavier, dialogue, affichage mobile et audits axe sur les écrans livrés.
 
-Les migrations Alembic métier, seed métier, OpenAPI, tests backend/frontend et E2E applicatifs restent planifiés. Aucun résultat applicatif, intégration Stripe ou déploiement AWS n'est revendiqué. Captures, démo et badges seront ajoutés lorsqu'ils existent.
+Dans `backend/` : `uv run mypy` et `uv run pytest -m 'not integration'`. Dans `frontend/` : `npm ci`, `npm run lint`, `npm run format:check`, `npm run check:api`, `npm run typecheck`, `npm test`, `npm run build`, puis `npx playwright install chromium --only-shell` et `npm run test:e2e` avec Compose lancé.
+
+La CI P02 est configurée mais n'a pas encore été exécutée sur GitHub : sa publication reste à autoriser. Les parcours E2E métier auth/réservation/opérations, le seed métier et Stripe seront ajoutés avec leurs fonctionnalités. La protection multi-tenant P02 concerne les primitives outbox ; elle ne prouve pas encore l'isolation des futures tables métier.
 
 ## Prochaine étape
 
-Revoir la PR P01, obtenir l'accord de fusion, puis l'accord avant P02. Les neuf Issues P01 et les neuf jalons sont publiés ; les Issues restent ouvertes pour la revue. La licence reste à choisir. La protection obligatoire de `main` a été refusée par l'offre GitHub actuelle pour ce dépôt privé ; la revue et la CI restent appliquées par convention.
+Publier le lot P02 et sa PR après accord, vérifier sa CI distante, puis obtenir l'accord avant P03. Les neuf Issues P01 restent ouvertes pour leur suivi formel. La licence reste à choisir. La configuration distante actuelle est conservée ; aucune dépense AWS n'est engagée.

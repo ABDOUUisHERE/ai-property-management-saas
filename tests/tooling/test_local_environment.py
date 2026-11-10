@@ -43,6 +43,24 @@ def test_generated_service_credentials_are_distinct_and_not_template_values(
     assert "__GENERATE__" not in values.values()
 
 
+def test_p01_environment_upgrade_adds_only_dispatcher_credential(initialized: Path) -> None:
+    path = initialized / ".env"
+    original = read_env(path)
+    original.pop("DATABASE_DISPATCH_PASSWORD")
+    path.write_text(
+        "\n".join(f"{key}='{value}'" for key, value in original.items()), encoding="utf-8"
+    )
+    before = path.read_bytes()
+    assert not init_environment(initialized)
+    after = read_env(path)
+    assert {key: after[key] for key in original} == original
+    assert path.read_bytes().startswith(before)
+    assert len(after["DATABASE_DISPATCH_PASSWORD"]) == 48
+    upgraded = path.read_bytes()
+    assert not init_environment(initialized)
+    assert path.read_bytes() == upgraded
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [

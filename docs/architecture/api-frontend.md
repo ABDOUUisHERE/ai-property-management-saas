@@ -46,7 +46,7 @@ Desktop-first responsive ; navigation clavier, labels, focus de dialogue, retour
 
 ## Arborescence cible
 
-Cette arborescence est un **plan** ; seuls les documents sont créés maintenant. Les dossiers/modules apparaissent lorsqu'une tâche les utilise.
+Cette arborescence est la **cible**. P01 a livré l'infrastructure et P02 ajoute `backend/` et `frontend/`. Les modules métier et les autres dossiers apparaissent lorsqu'une tâche les utilise ; voir [le suivi P02](../progress/phase-02.md) pour ce qui est réellement vérifié.
 
 ```text
 /

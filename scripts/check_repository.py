@@ -73,12 +73,21 @@ def check_backlog(root: Path) -> int:
 
 def check_compose(path: Path) -> int:
     services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
-    if set(services) != {"postgres", "auth-db", "auth", "redis", "mailpit", "storage"}:
-        raise ValueError("Unexpected phase P01 service set")
+    external = {"postgres", "auth-db", "auth", "redis", "mailpit", "storage"}
+    application = {"api", "ui", "migrate", "worker", "dispatcher"}
+    if set(services) != external | application:
+        raise ValueError("Unexpected phase P02 service set")
     for name, service in services.items():
-        if not re.search(r"@sha256:[a-f0-9]{64}$", service.get("image", "")):
+        if name in external and not re.search(r"@sha256:[a-f0-9]{64}$", service.get("image", "")):
             raise ValueError(f"Image is not pinned by digest: {name}")
-        if not service.get("healthcheck"):
+        if name in application and not service.get("build", {}).get("dockerfile"):
+            raise ValueError(f"Missing application Dockerfile: {name}")
+        if name in application:
+            dockerfile = path.parent / service["build"]["dockerfile"]
+            for base in re.findall(r"^FROM (\S+)", dockerfile.read_text(), re.M):
+                if not re.search(r"@sha256:[a-f0-9]{64}$", base):
+                    raise ValueError(f"Application base image is not pinned: {name}")
+        if name != "migrate" and not service.get("healthcheck"):
             raise ValueError(f"Missing healthcheck: {name}")
         if service.get("privileged") or service.get("network_mode") == "host":
             raise ValueError(f"Unexpected elevated container access: {name}")
@@ -95,6 +104,12 @@ def check_compose(path: Path) -> int:
         if "-h 127.0.0.1" not in probe:
             raise ValueError(f"Database readiness must wait for TCP after initialization: {name}")
     auth = services["auth"]["environment"]
+    for name in ("api", "worker", "dispatcher"):
+        environment = services[name]["environment"]
+        if "PMS_MIGRATION_PASSWORD" in environment or "DATABASE_ADMIN_PASSWORD" in environment:
+            raise ValueError(f"Runtime receives migration/admin credentials: {name}")
+    if "PMS_DATABASE_PASSWORD" in services["dispatcher"]["environment"]:
+        raise ValueError("Dispatcher must not receive ordinary business credentials")
     if auth["GOTRUE_MAILER_AUTOCONFIRM"] != "false" or not auth.get("GOTRUE_JWT_KEYS"):
         raise ValueError("Auth must confirm emails and configure asymmetric keys")
     return len(services)

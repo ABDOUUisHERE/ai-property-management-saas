@@ -21,12 +21,122 @@ services:
       POSTGRES_INITDB_ARGS: --data-checksums
       DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Generate .env}
       DATABASE_RUNTIME_PASSWORD: ${DATABASE_RUNTIME_PASSWORD:?Generate .env}
+      DATABASE_DISPATCH_PASSWORD: ${DATABASE_DISPATCH_PASSWORD:?Run init to extend .env}
     ports:
       - 127.0.0.1:${DATABASE_PORT:-15432}:5432
     volumes:
       - business-db:/var/lib/postgresql/data
       - ./infra/docker/postgres/init-business.sh:/docker-entrypoint-initdb.d/10-business.sh:ro
     networks: [business]
+
+  migrate:
+    build: &backend-build
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    command: [alembic, upgrade, head]
+    environment:
+      PMS_DATABASE_HOST: postgres
+      PMS_DATABASE_PORT: "5432"
+      PMS_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Generate .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [business]
+    security_opt: [no-new-privileges:true]
+
+  api:
+    build: *backend-build
+    command: [uvicorn, app.main:create_app, --factory, --host, 0.0.0.0, --port, "8000", --no-access-log, --no-proxy-headers]
+    environment: &runtime
+      PMS_ENVIRONMENT: local
+      PMS_DATABASE_HOST: postgres
+      PMS_DATABASE_PORT: "5432"
+      PMS_DATABASE_PASSWORD: ${DATABASE_RUNTIME_PASSWORD:?Generate .env}
+      PMS_REDIS_HOST: redis
+      PMS_REDIS_PORT: "6379"
+      PMS_REDIS_PASSWORD: ${REDIS_PASSWORD:?Generate .env}
+    ports: ["127.0.0.1:18000:8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    networks: [business]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
+  worker:
+    build: *backend-build
+    command: [celery, -A, app.workers.celery_app:celery, worker, --hostname=pms@%h, --concurrency=1, --loglevel=WARNING, --without-gossip, --without-mingle]
+    environment:
+      <<: *runtime
+      PMS_PROCESS: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "from pathlib import Path; import time; assert time.time() - Path('/tmp/worker-heartbeat').stat().st_mtime < 20"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    networks: [business]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
+  dispatcher:
+    build: *backend-build
+    command: [python, -m, app.workers.dispatcher]
+    environment:
+      PMS_PROCESS: dispatcher
+      PMS_ENVIRONMENT: local
+      PMS_DATABASE_HOST: postgres
+      PMS_DATABASE_PORT: "5432"
+      PMS_DISPATCH_PASSWORD: ${DATABASE_DISPATCH_PASSWORD:?Run init}
+      PMS_REDIS_HOST: redis
+      PMS_REDIS_PORT: "6379"
+      PMS_REDIS_PASSWORD: ${REDIS_PASSWORD:?Generate .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "from pathlib import Path; import time; assert time.time() - Path('/tmp/dispatcher-heartbeat').stat().st_mtime < 15"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [business]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
+  ui:
+    build:
+      context: .
+      dockerfile: infra/docker/frontend.Dockerfile
+    ports: ["127.0.0.1:18173:8080"]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, --spider, -q, http://127.0.0.1:8080/]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [business]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
 
   auth-db:
     <<: *postgres
@@ -55,8 +165,8 @@ services:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: "9999"
       API_EXTERNAL_URL: ${AUTH_EXTERNAL_URL:-http://127.0.0.1:19999}
-      GOTRUE_SITE_URL: ${APP_SITE_URL:-http://127.0.0.1:5173}
-      GOTRUE_URI_ALLOW_LIST: ${APP_SITE_URL:-http://127.0.0.1:5173}
+      GOTRUE_SITE_URL: ${APP_SITE_URL:-http://127.0.0.1:18173}
+      GOTRUE_URI_ALLOW_LIST: ${APP_SITE_URL:-http://127.0.0.1:18173}
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${AUTH_DATABASE_PASSWORD:?Generate .env}@auth-db:5432/auth
       DB_NAMESPACE: auth

@@ -1,6 +1,6 @@
 # Suivi P01 — fondations locales
 
-Date : 2026-11-10. Autorisation : validation du cadrage/backlog (« je valide »), reprise de Docker Desktop, puis publication GitHub autorisée par l'utilisateur (« oui »). La fusion de la PR, P02 et toute dépense AWS restent hors de l'autorisation actuelle.
+Date : 2026-11-10. Autorisations : cadrage/backlog (« je valide »), reprise de Docker, publication GitHub (« oui »), puis fusion de la PR #10 (« continue fusionne »). La fusion est réalisée sur `6af120f` et sa [CI après fusion a réussi](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42842746766). P02 a ensuite été autorisée (« continue ») ; voir [son suivi](phase-02.md). Aucune dépense AWS n'est autorisée.
 
 ## Lot et plan
 
@@ -12,8 +12,8 @@ Références : **T001/T002, puis T005–T009**, et publication T003/T004 après 
 | --- | --- | --- |
 | T001 | Réalisée localement | CONTRIBUTING, règles actualisées et six ADRs acceptés ; liens contrôlés |
 | T002 | Réalisée localement | Git autonome, main et branche `feat/t001-local-foundations` ; identité associée au compte ; secrets exclus ; commits vérifiés après contrôles |
-| T003 | Publiée, options documentées | [Dépôt privé vérifié](https://github.com/ABDOUUisHERE/ai-property-management-saas), `origin`, main et branche de travail, neuf jalons ; licence ouverte et Project non configuré |
-| T004 | Publiée, en revue | Neuf Issues P01 avec dépendances, labels et milestone ; [PR #10](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10) ouverte |
+| T003 | Publiée, options documentées | [Dépôt GitHub](https://github.com/ABDOUUisHERE/ai-property-management-saas), `origin`, main et branche de travail, neuf jalons ; licence ouverte et Project non configuré |
+| T004 | PR fusionnée | Neuf Issues P01 avec dépendances, labels et milestone ; [PR #10](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10) fusionnée ; Issues encore ouvertes pour le suivi formel |
 | T005 | Vérifiée localement | Signup, Mailpit, confirmation, login, ES256/JWKS, refresh/logout réussis sur environnements principal et neuf |
 | T006 | Vérifiée localement | Six services healthy, réseaux/volumes séparés, ports loopback, images par digest, rôles DB restreints |
 | T007 | Réalisée localement | Python 3.12.12 via uv, lockfile, secrets locaux générés/ignorés ; frontend reporté à P02 |
@@ -43,9 +43,9 @@ La syntaxe du workflow Actions a été vérifiée avec actionlint **1.7.12**, sa
 
 ## Portée restante
 
-Le volet technique P01 est vérifié et publié. La PR et les neuf Issues restent ouvertes pour revue ; aucune fusion n'est effectuée. La protection obligatoire de `main` a été refusée avec HTTP 403 pour ce dépôt privé et l'offre actuelle ; le dépôt reste privé. Le board Project optionnel exige un scope d'écriture absent. La licence reste à choisir. L'utilisateur doit autoriser la fusion et P02 selon le périmètre souhaité.
+Le volet technique P01 est vérifié, publié et fusionné. Les neuf Issues restent ouvertes pour le suivi formel des critères. La protection de `main` avait été refusée avec HTTP 403 lorsque le dépôt était privé ; sa visibilité a depuis été observée publique, sans modification par l'agent. Le Project optionnel exige un scope d'écriture absent. La licence reste à choisir. Les détails techniques ci-dessus constituent les preuves historiques P01 ; le schéma et Compose évoluent dans P02.
 
-Activité réelle : **1 dépôt privé créé, 9 jalons, 9 Issues et 1 PR publiée, 0 fusion**. Les deux branches initiales sont envoyées : `main` (`26f8caf`) et `feat/t001-local-foundations` (`a4f4f01` pour les fondations). Ce suivi est actualisé dans un commit documentaire distinct. Les contributions visibles sur le profil GitHub ne sont pas déduites de ces nombres.
+Activité réelle P01 : **1 dépôt créé initialement privé, 9 jalons, 9 Issues, 1 PR publiée puis fusionnée**. Les fondations et le commit de suivi documentaire sont intégrés à `main` par `6af120f`. Les contributions visibles sur le profil GitHub ne sont pas déduites de ces nombres.
 
 ## Ressources GitHub vérifiées
 

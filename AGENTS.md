@@ -2,11 +2,11 @@
 
 ## État et autorisations
 
-Le cadrage, le backlog et les recommandations d'architecture ont été validés par l'utilisateur le 2026-11-10 (« je valide »). La phase P01 est autorisée : conventions, Git local, dépendances Docker et CI minimale. Consulter [le suivi P01](docs/progress/phase-01.md) pour les résultats réels et les paramètres encore ouverts. Attendre l'accord de l'utilisateur avant de commencer P02 ou une phase suivante.
+Le cadrage, le backlog et l'architecture ont été validés le 2026-11-10 (« je valide »). P01 est vérifiée et la PR #10 a été fusionnée sur accord explicite (« continue fusionne »), avec CI verte sur `6af120f`. L'utilisateur a ensuite autorisé P02 (« continue »). Consulter [le suivi P01](docs/progress/phase-01.md) et [le suivi P02](docs/progress/phase-02.md) pour les preuves et limites. Attendre l'accord avant P03 ou une phase suivante.
 
 L'utilisateur a autorisé la publication GitHub le 2026-11-10 (« oui ») : dépôt privé `ABDOUUisHERE/ai-property-management-saas`, push de `main` et `feat/t001-local-foundations`, neuf jalons, Issues P01 et PR de revue du lot validé. Poursuivre les mises à jour nécessaires à ce lot sans redemander cette autorisation. Les liens réels figurent dans [le suivi P01](docs/progress/phase-01.md).
 
-Toute fusion, publication hors de ce périmètre, nouvelle phase ou dépense AWS demande une autorisation couvrant l'action. Conserver les accords déjà obtenus. La protection obligatoire de `main` est indisponible avec l'offre GitHub actuelle pour ce dépôt privé ; appliquer le workflow de PR/revue sans changer la visibilité.
+La fusion de P01 est autorisée et réalisée. La publication distante du nouveau lot P02, sa fusion, une nouvelle phase ou une dépense AWS demandent une autorisation couvrant l'action ; conserver les accords déjà obtenus. La protection obligatoire de `main` avait été refusée pour le dépôt privé. Sa visibilité a depuis été observée publique ; appliquer le workflow de PR/revue et préserver la configuration distante actuelle.
 
 ## Avant un changement
 
