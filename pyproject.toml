@@ -1,0 +1,36 @@
+[project]
+name = "property-management-tooling"
+version = "0.1.0"
+description = "Local infrastructure tooling for the Property Management SaaS"
+requires-python = ">=3.12,<3.15"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/tooling/*.py" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/tooling"]
+addopts = "-ra"
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "boto3>=1.43.127",
+    "cryptography>=50.0.2",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.8",
+    "pyjwt[crypto]>=2.15.1",
+    "pytest>=9.2.0",
+    "pyyaml>=6.0.3",
+    "ruff>=0.17.4",
+]
