@@ -1,0 +1,22 @@
+name: Bug reproductible
+description: Décrire un écart observé et sa reproduction sans données sensibles.
+title: "fix: "
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction minimale
+      description: Étapes, environnement et données fictives uniquement.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Résultat attendu et observé
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Preuves expurgées et validation du correctif
+      description: Aucun token, mot de passe, email réel ou payload personnel.

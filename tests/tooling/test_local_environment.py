@@ -1,0 +1,127 @@
+"""Guard against leaking credentials, overwriting volumes' keys or testing a remote service."""
+
+import copy
+import json
+import shutil
+import time
+from pathlib import Path
+
+import jwt
+import pytest
+
+from scripts.dev import (
+    ROOT,
+    SECRET_KEYS,
+    init_environment,
+    read_env,
+    signing_key,
+    validate_env,
+    verify_token,
+)
+
+
+@pytest.fixture
+def initialized(tmp_path: Path) -> Path:
+    shutil.copyfile(ROOT / ".env.example", tmp_path / ".env.example")
+    assert init_environment(tmp_path)
+    return tmp_path
+
+
+def test_second_init_preserves_all_provisioned_credentials(initialized: Path) -> None:
+    path = initialized / ".env"
+    before = path.read_bytes()
+    assert not init_environment(initialized)
+    assert path.read_bytes() == before
+
+
+def test_generated_service_credentials_are_distinct_and_not_template_values(
+    initialized: Path,
+) -> None:
+    values = read_env(initialized / ".env")
+    validate_env(values)
+    assert len({values[key] for key in SECRET_KEYS}) == len(SECRET_KEYS)
+    assert "__GENERATE__" not in values.values()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("APP_ENV", "production"),
+        ("AUTH_EXTERNAL_URL", "https://auth.example.com"),
+        ("APP_SITE_URL", "http://user:password@127.0.0.1:5173"),
+        ("APP_SITE_URL", "http://example.com"),
+        ("REDIS_PORT", "15432"),
+        ("DATABASE_ADMIN_PASSWORD", "__GENERATE__"),
+    ],
+)
+def test_config_rejects_remote_targets_and_incomplete_or_conflicting_values(
+    initialized: Path,
+    key: str,
+    value: str,
+) -> None:
+    values = read_env(initialized / ".env")
+    values[key] = value
+    with pytest.raises(ValueError):
+        validate_env(values)
+
+
+def test_invalid_existing_env_is_not_replaced(initialized: Path) -> None:
+    path = initialized / ".env"
+    path.write_text("APP_ENV=production\n", encoding="utf-8")
+    before = path.read_bytes()
+    with pytest.raises(ValueError):
+        init_environment(initialized)
+    assert path.read_bytes() == before
+
+
+def test_duplicate_env_key_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / ".env"
+    path.write_text("APP_ENV=local\nAPP_ENV=production\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate"):
+        read_env(path)
+
+
+def test_es256_private_key_and_public_jwks_are_interoperable() -> None:
+    private = signing_key()
+    public = copy.deepcopy(private)
+    public.pop("d")
+    public["key_ops"] = ["verify"]
+    token = jwt.encode({"sub": "fixture"}, jwt.PyJWK.from_dict(private).key, algorithm="ES256")
+    assert (
+        jwt.decode(token, jwt.PyJWK.from_dict(public).key, algorithms=["ES256"])["sub"] == "fixture"
+    )
+    assert "d" not in json.loads(json.dumps(public))
+    with pytest.raises(jwt.InvalidSignatureError):
+        jwt.decode(token, jwt.PyJWK.from_dict(signing_key()).key, algorithms=["ES256"])
+
+
+@pytest.mark.parametrize(
+    ("issuer", "audience", "offset", "error"),
+    [
+        ("http://127.0.0.1:19999", "authenticated", 2, None),
+        ("http://127.0.0.1:19999", "authenticated", 60, jwt.ImmatureSignatureError),
+        ("http://wrong-issuer.test", "authenticated", 0, jwt.InvalidIssuerError),
+        ("http://127.0.0.1:19999", "wrong-audience", 0, jwt.InvalidAudienceError),
+    ],
+)
+def test_auth_validation_bounds_clock_skew_and_still_checks_issuer_and_audience(
+    issuer: str,
+    audience: str,
+    offset: int,
+    error: type[Exception] | None,
+) -> None:
+    private = signing_key()
+    public = {key: value for key, value in private.items() if key != "d"}
+    public["key_ops"] = ["verify"]
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "fixture", "iss": issuer, "aud": audience, "iat": now + offset, "exp": now + 300},
+        jwt.PyJWK.from_dict(private).key,
+        algorithm="ES256",
+        headers={"kid": private["kid"]},
+    )
+    if error:
+        with pytest.raises(error):
+            verify_token(token, {"keys": [public]}, "http://127.0.0.1:19999")
+    else:
+        assert verify_token(token, {"keys": [public]}, issuer)["sub"] == "fixture"

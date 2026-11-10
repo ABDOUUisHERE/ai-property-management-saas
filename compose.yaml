@@ -1,0 +1,170 @@
+name: ${COMPOSE_PROJECT_NAME:-pms_dev}
+
+x-postgres: &postgres
+  image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+  restart: unless-stopped
+  healthcheck:
+    test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+    interval: 5s
+    timeout: 3s
+    retries: 20
+    start_period: 10s
+  security_opt: [no-new-privileges:true]
+
+services:
+  postgres:
+    <<: *postgres
+    environment:
+      POSTGRES_USER: pms_admin
+      POSTGRES_DB: property_management
+      POSTGRES_PASSWORD: ${DATABASE_ADMIN_PASSWORD:?Generate .env with scripts/dev.py init}
+      POSTGRES_INITDB_ARGS: --data-checksums
+      DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Generate .env}
+      DATABASE_RUNTIME_PASSWORD: ${DATABASE_RUNTIME_PASSWORD:?Generate .env}
+    ports:
+      - 127.0.0.1:${DATABASE_PORT:-15432}:5432
+    volumes:
+      - business-db:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init-business.sh:/docker-entrypoint-initdb.d/10-business.sh:ro
+    networks: [business]
+
+  auth-db:
+    <<: *postgres
+    environment:
+      POSTGRES_USER: auth_bootstrap
+      POSTGRES_DB: auth
+      POSTGRES_PASSWORD: ${AUTH_DATABASE_ADMIN_PASSWORD:?Generate .env}
+      POSTGRES_INITDB_ARGS: --data-checksums
+      AUTH_DATABASE_PASSWORD: ${AUTH_DATABASE_PASSWORD:?Generate .env}
+    volumes:
+      - identity-db:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init-auth.sh:/docker-entrypoint-initdb.d/10-auth.sh:ro
+    networks: [identity]
+
+  auth:
+    # Minimal Auth configuration derived from Supabase's pinned official composition.
+    # Provenance and deliberate omissions: infra/docker/README.md.
+    image: supabase/gotrue:v2.197.0@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b
+    restart: unless-stopped
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: ${AUTH_EXTERNAL_URL:-http://127.0.0.1:19999}
+      GOTRUE_SITE_URL: ${APP_SITE_URL:-http://127.0.0.1:5173}
+      GOTRUE_URI_ALLOW_LIST: ${APP_SITE_URL:-http://127.0.0.1:5173}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${AUTH_DATABASE_PASSWORD:?Generate .env}@auth-db:5432/auth
+      DB_NAMESPACE: auth
+      GOTRUE_JWT_SECRET: ${AUTH_JWT_SECRET:?Generate .env}
+      GOTRUE_JWT_KEYS: ${AUTH_JWT_KEYS:?Generate .env}
+      GOTRUE_JWT_ISSUER: ${AUTH_EXTERNAL_URL:-http://127.0.0.1:19999}
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: "900"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_PASSWORD_MIN_LENGTH: "12"
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: "10"
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: "120"
+      GOTRUE_SMTP_HOST: mailpit
+      GOTRUE_SMTP_PORT: "1025"
+      GOTRUE_SMTP_ADMIN_EMAIL: no-reply@property-management.test
+      GOTRUE_SMTP_SENDER_NAME: Property Management local
+      GOTRUE_SMTP_MAX_FREQUENCY: 1s
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /verify
+      GOTRUE_MAILER_URLPATHS_INVITE: /verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /verify
+      GOTRUE_LOG_LEVEL: warn
+    ports:
+      - 127.0.0.1:${AUTH_PORT:-19999}:9999
+    healthcheck:
+      test: [CMD, wget, --no-verbose, --tries=1, --spider, http://127.0.0.1:9999/health]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    security_opt: [no-new-privileges:true]
+    networks: [identity]
+
+  redis:
+    image: redis:8.10.3-alpine@sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Generate .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Generate .env}
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    ports:
+      - 127.0.0.1:${REDIS_PORT:-16379}:6379
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    security_opt: [no-new-privileges:true]
+    networks: [business]
+
+  mailpit:
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "500"
+      MP_SMTP_AUTH_ACCEPT_ANY: "false"
+    ports:
+      - 127.0.0.1:${MAILPIT_HTTP_PORT:-18025}:8025
+    volumes:
+      - mail-data:/data
+    healthcheck:
+      test: [CMD, /mailpit, readyz]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    security_opt: [no-new-privileges:true]
+    networks: [identity]
+
+  storage:
+    image: rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
+    restart: unless-stopped
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?Generate .env}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?Generate .env}
+      RUSTFS_OBS_LOGGER_LEVEL: warn
+    ports:
+      - 127.0.0.1:${S3_PORT:-19000}:9000
+    volumes:
+      - object-data:/data
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:9000/health]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    security_opt: [no-new-privileges:true]
+    networks: [business]
+
+networks:
+  business:
+    driver: bridge
+  identity:
+    driver: bridge
+
+volumes:
+  business-db:
+  identity-db:
+  redis-data:
+  mail-data:
+  object-data:

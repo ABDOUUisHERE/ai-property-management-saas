@@ -1,0 +1,40 @@
+name: Tâche du backlog
+description: Livrer un incrément vérifiable du backlog validé.
+title: "[Txxx] "
+body:
+  - type: input
+    id: hierarchy
+    attributes:
+      label: Parent et phase
+      description: Epic, feature, user story et phase/version.
+      placeholder: E01 / FEA03 / US03 — P01 / MVP
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Objectif et périmètre
+      description: Décrire le comportement attendu, le module, la priorité et la complexité.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dépendances et décisions
+      description: IDs locaux, liens réels et décisions requises.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critères d'acceptation
+      description: Résultats observables permettant de clôturer la tâche.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation nécessaire
+      description: Tests/cas à couvrir puis commandes réellement exécutées et résultats.
+    validations:
+      required: true
