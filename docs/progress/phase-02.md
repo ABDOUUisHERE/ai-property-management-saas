@@ -83,7 +83,7 @@ verrouillée, `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm 
 Le push a été autorisé (« push ca »), puis la livraison GitHub poursuivie sur
 « continue […] le max de contributions » le 2026-11-11. **Dix Issues #11–#20
 et la [PR #21](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/21)
-sont publiées ; aucune fusion P02 n'est réalisée.** La [CI du push sur 9e53603](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42853034821)
+sont publiées ; P02 est fusionnée le 2026-11-11 sur `04726fe`.** La [CI du push sur 9e53603](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42853034821)
 a réussi sur les quatre jobs, y compris PostgreSQL, perte Redis et navigateur.
 
 La revue du 2026-11-11 a reproduit et corrigé deux régressions :
@@ -97,10 +97,13 @@ La revue du 2026-11-11 a reproduit et corrigé deux régressions :
   sensible exposée au serveur ; un compteur et un résultat de log le signalent.
   **10 tests unitaires/contrat backend passent**, avec mypy strict et Ruff.
 
-La CI du nouveau HEAD doit encore être vérifiée sur la PR avant sa livraison.
+Les quatre jobs de la [CI PR sur `403fb81`](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/43010940075)
+et les quatre jobs du push ont réussi avant fusion : 45 tests au total
+(17 outillage, 16 backend, 9 frontend, 3 navigateur).
 Les preuves de la recette initiale ci-dessus restent attachées à leur version.
 Le [bilan du 11 novembre](2026-11-11.md) distingue activité et contributions visibles.
-P03 attend un nouvel accord.
+P03 est autorisée par « fait le meilleur choix » en réponse à la proposition
+fusion P02 puis démarrage P03 ; voir [son suivi](phase-03.md).
 La façade Auth, les memberships, le RBAC, les tables métier, les paiements et le
 seed métier restent hors du lot. Le warning de dépréciation du transport httpx
 du TestClient Starlette est non bloquant et reste à migrer vers httpx2.

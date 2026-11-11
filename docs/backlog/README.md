@@ -1,6 +1,6 @@
 # Backlog proposé — validation requise
 
-**120 tâches techniques, 12 epics, 36 features et 36 user stories.** Les tâches T001–T104 couvrent la préparation et le MVP ; T105–T115 concernent V2, T116–T120 la V3 facultative. Le backlog a été **validé le 2026-11-10**, sans Issue GitHub publiée à ce stade. L'avancement et les preuves sont suivis dans [P01](../progress/phase-01.md) ; validation du plan et réalisation des tâches sont distinctes.
+**120 tâches techniques, 12 epics, 36 features et 36 user stories.** Les tâches T001–T104 couvrent la préparation et le MVP ; T105–T115 concernent V2, T116–T120 la V3 facultative. Le backlog a été **validé le 2026-11-10**. Les Issues P01, P02 et P03 sont publiées ; P01 et P02 sont fusionnées, P03 est en cours. L'avancement et les preuves sont suivis dans [P01](../progress/phase-01.md), [P02](../progress/phase-02.md) et [P03](../progress/phase-03.md) ; validation du plan et réalisation des tâches sont distinctes.
 
 Chaque fichier suit Epic → Feature → User Story → Technical Task. Chaque ligne donne identifiant/titre, description, module, priorité, dépendances, critères d'acceptation, tests et complexité. La phase et la version sont explicitement définies par l'en-tête du fichier et s'appliquent à **chaque tâche de ce fichier**. Une dépendance `Txxx` est un préalable de réalisation, non une demande de créer un commit séparé.
 
