@@ -16,6 +16,12 @@ Les erreurs contiennent un code stable et un `request_id`, sans valeurs de champ
 payload fournisseur ni exception brute. Le navigateur affiche un message local
 adapté ; le détail arbitraire d'un fournisseur ne devient pas du HTML affiché.
 
+Si une erreur survient après l'envoi des en-têtes, le serveur interrompt le flux
+avec une exception expurgée ; il ne peut plus remplacer le statut HTTP. Aucun
+second bloc d'en-têtes n'est envoyé. Le compteur `pms_http_stream_failures_total`
+et le champ de log `outcome=interrupted` permettent de détecter ce cas même si
+le statut initial était 200.
+
 ## Modifier un contrat
 
 1. Modifier les schémas Pydantic et leurs exemples/tests dans `backend/`.

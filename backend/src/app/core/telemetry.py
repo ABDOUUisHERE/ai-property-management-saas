@@ -12,6 +12,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 logger = logging.getLogger("pms.http")
 
 
+class ResponseStreamError(RuntimeError):
+    """Safe failure passed to the ASGI server after headers have been committed."""
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         return json.dumps(
@@ -44,6 +48,12 @@ class Telemetry:
         self.duration = Histogram(
             "pms_http_request_seconds", "HTTP duration", ["route"], registry=self.registry
         )
+        self.stream_failures = Counter(
+            "pms_http_stream_failures_total",
+            "Interrupted HTTP responses",
+            ["route"],
+            registry=self.registry,
+        )
 
 
 class RequestTelemetry:
@@ -62,10 +72,12 @@ class RequestTelemetry:
             request_id = str(uuid4())
         scope.setdefault("state", {})["request_id"] = request_id
         started, status = time.monotonic(), 500
+        response_started, stream_failed = False, False
 
         async def wrapped_send(message: Message) -> None:
-            nonlocal status
+            nonlocal status, response_started
             if message["type"] == "http.response.start":
+                response_started = True
                 status = message["status"]
                 message["headers"] = [
                     *message.get("headers", []),
@@ -77,6 +89,11 @@ class RequestTelemetry:
             try:
                 await self.app(scope, receive, wrapped_send)
             except Exception:
+                if response_started:
+                    # A second response start violates ASGI. Abort the stream with
+                    # a safe exception; the server must not log the original error.
+                    stream_failed = True
+                    raise ResponseStreamError("Response stream failed") from None
                 from starlette.requests import Request
 
                 from app.core.errors import problem_response
@@ -90,6 +107,8 @@ class RequestTelemetry:
             elapsed = time.monotonic() - started
             self.telemetry.requests.labels(route, str(status)).inc()
             self.telemetry.duration.labels(route).observe(elapsed)
+            if stream_failed:
+                self.telemetry.stream_failures.labels(route).inc()
             logger.info(
                 "request",
                 extra={
@@ -97,6 +116,7 @@ class RequestTelemetry:
                         "request_id": request_id,
                         "status": status,
                         "route": route,
+                        "outcome": "interrupted" if stream_failed else "complete",
                         "duration_ms": round(elapsed * 1000, 2),
                     }
                 },
