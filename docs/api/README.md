@@ -2,7 +2,8 @@
 
 Le [snapshot OpenAPI](openapi.json) décrit les sondes et la façade Auth :
 GET `/api/v1/auth/csrf`, POST `/api/v1/auth/register`, `/login`, `/logout`,
-`/refresh`, GET `/api/v1/me`, GET `/health/live` et `/health/ready`.
+`/refresh`, `/recovery/request`, `/recovery/confirm`, GET `/api/v1/me`,
+GET `/health/live` et `/health/ready`.
 Les chemins abrégés partagent `/api/v1/auth`. Le contrat est disponible sur
 `/api/v1/openapi.json` et sa documentation sur `/api/v1/docs`.
 
@@ -35,7 +36,59 @@ ces opérations par 503. Les en-têtes forwarded ne font pas autorité : derriè
 le proxy Compose, la limite source est partagée par ses utilisateurs. Une future
 configuration de proxies de confiance devra être explicite avant exploitation.
 
-Récupération de compte (T023), organisations, RBAC et écrans Auth restent à livrer.
+## Récupération de compte
+
+POST `/api/v1/auth/recovery/request` accepte seulement `email` et renvoie 202
+`{"status":"accepted"}` pour compte connu/inconnu et refus/throttling fournisseur.
+La limite locale est de cinq demandes par heure et email haché ; les protections
+Origin/CSRF et la limite par source restent obligatoires. L'URL de retour est
+fixée côté serveur à l'origine configurée + `/auth/reset` ; tout champ client
+`redirect_to` est refusé. Les pannes fournisseur renvoient 503 générique.
+
+Le template Supabase utilise un lien `/auth/reset#token_hash=…` : le fragment
+n'est pas envoyé aux serveurs HTTP. L'interface T031 devra le retirer de l'URL
+immédiatement et conserver le jeton uniquement en mémoire. Aucun GET ne consomme
+le jeton. POST `/api/v1/auth/recovery/confirm` reçoit `token_hash` (56 caractères
+hexadécimaux) et `password` (12–128 caractères) ; Supabase vérifie exclusivement
+le type `recovery`, l'expiration d'une heure et l'usage unique.
+
+Avant le changement distant, une transaction pose une barrière par sujet :
+sessions antérieures invalidées et login bloqué. Les logins commencés avant la
+barrière sont également refusés, même si leur réponse fournisseur arrive après.
+Un lease de 30 secondes possède un propriétaire unique, sans transaction SQL
+pendant le réseau. Timeout, refus de mot de passe ou réponse tardive laisse la
+barrière fermée : demander un nouvel email et reprendre après le lease. Cette
+option privilégie la révocation à la continuité de connexion après échec.
+
+Le succès renvoie 204, expire les cookies locaux et exige un nouveau login ;
+il ne connecte jamais automatiquement le navigateur. Jeton invalide/expiré/
+réutilisé : 401 ; récupération déjà en cours ou réponse tardive : 409.
+La révocation des anciennes sessions est logique et immédiate à la résolution ;
+leurs ciphertexts restent soumis à la durée et à la future purge des sessions.
+## Organisations
+
+Ces routes exigent une session opaque résolue ; le sujet et l'acteur ne peuvent
+pas être fournis dans le JSON. POST `/api/v1/organizations` accepte `name`
+(1–120 caractères, sans contrôles) et `request_id` (UUID d'idempotence).
+La transaction crée l'organisation et son premier owner : 201 initialement,
+200 pour la répétition du même nom et de la même clé par le même acteur ;
+409 si cette clé est réutilisée avec un autre nom. Les champs `role`, `created_by`
+ou `organization_id` sont refusés. Origin/CSRF restent obligatoires.
+
+GET `/api/v1/organizations` liste uniquement les appartenances actives de
+l'utilisateur. GET `/api/v1/organizations/current` utilise `X-Organization-ID`
+comme sélecteur et relit sa membership active avant de construire le contexte
+serveur. Sélecteur absent/invalide : 422 ; organisation étrangère, inexistante
+ou appartenance retirée : 404. Session invalide : 401. Deux onglets peuvent
+envoyer des sélecteurs différents ; aucun tenant actif global n'est stocké.
+Les réponses sont `no-store`, les corps JSON limités à 8 Kio.
+
+La voie SQL de bootstrap autorise seulement le créateur, comme owner actif,
+sur une organisation créée dans la transaction courante. Une FK différée
+interdit le commit sans son premier membre ; la clé composite de membership
+interdit les doublons. Le runtime ne possède pas encore UPDATE/DELETE sur ces
+tables. Les changements de membres, l'audit sensible et les permissions de
+ressources restent à livrer par T025–T030. Les écrans Auth restent à livrer.
 
 Les schémas transversaux versionnés fixent : erreurs Problem Details, pagination
 `page >= 1`, `1 <= limit <= 100`, monnaie entière en unités mineures avec code

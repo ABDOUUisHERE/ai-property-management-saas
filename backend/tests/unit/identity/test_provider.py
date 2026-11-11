@@ -65,6 +65,56 @@ def test_signup_login_refresh_logout_contract(endpoint, public_key, encode, clai
         provider.close()
 
 
+def test_recovery_is_provider_typed_and_never_returns_tokens_to_requester(
+    endpoint, public_key, encode, claims
+):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path.endswith("jwks.json"):
+            return httpx.Response(200, json={"keys": [public_key]})
+        if request.url.path == "/recover":
+            return httpx.Response(200, json={})
+        if request.url.path == "/user":
+            return httpx.Response(200, json={"id": claims["sub"]})
+        return httpx.Response(200, json=account_payload(encode, claims))
+
+    provider = SupabaseProvider(endpoint, transport=httpx.MockTransport(handler))
+    try:
+        redirect = "http://127.0.0.1:18173/auth/reset"
+        assert provider.request_recovery("fiction@example.test", redirect_to=redirect) is None
+        recovered = provider.verify_recovery(SecretStr("a" * 56))
+        provider.change_recovered_password(recovered, SecretStr("private-new-password"))
+        assert dict(requests[0].url.params) == {"redirect_to": redirect}
+        assert json.loads(requests[0].content) == {"email": "fiction@example.test"}
+        assert json.loads(requests[1].content) == {"type": "recovery", "token_hash": "a" * 56}
+        assert requests[-1].method == "PUT" and requests[-1].url.path == "/user"
+        assert json.loads(requests[-1].content) == {"password": "private-new-password"}
+        assert requests[-1].headers["Authorization"] == (
+            "Bearer " + recovered.tokens.access_token.get_secret_value()
+        )
+    finally:
+        provider.close()
+
+
+def test_password_update_rejects_a_foreign_provider_response(endpoint, public_key, encode, claims):
+    def handler(request):
+        if request.url.path.endswith("jwks.json"):
+            return httpx.Response(200, json={"keys": [public_key]})
+        if request.url.path == "/user":
+            return httpx.Response(200, json={"id": str(uuid4())})
+        return httpx.Response(200, json=account_payload(encode, claims))
+
+    provider = SupabaseProvider(endpoint, transport=httpx.MockTransport(handler))
+    try:
+        account = provider.verify_recovery(SecretStr("a" * 56))
+        with pytest.raises(ProviderUnavailable):
+            provider.change_recovered_password(account, SecretStr("private-new-password"))
+    finally:
+        provider.close()
+
+
 @pytest.mark.parametrize(
     "status,expected",
     [

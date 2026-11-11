@@ -19,12 +19,16 @@ from app.core.database import SCHEMA_REVISION, UnitOfWork, make_engine
 from app.core.errors import ApplicationError, install_error_handlers
 from app.core.telemetry import RequestTelemetry, Telemetry, configure_logging
 from app.modules.identity.provider import SupabaseProvider
+from app.modules.identity.recovery import RecoveryService
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.router import identity_router, install_identity_errors
 from app.modules.identity.security import AuthGuard, BrowserSecurity, RedisRateLimit
 from app.modules.identity.sessions import SessionService
 from app.modules.identity.transport import AuthEndpoint
 from app.modules.identity.vault import TokenVault
+from app.modules.organizations.repository import OrganizationRepository
+from app.modules.organizations.router import organization_router
+from app.modules.organizations.service import OrganizationService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -60,6 +64,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.auth_sessions = SessionService(
             IdentityRepository(sessionmaker(engine)), provider, vault, app.state.clock
         )
+        app.state.auth_recovery = RecoveryService(
+            IdentityRepository(sessionmaker(engine)),
+            provider,
+            app.state.clock,
+            browser_origin=security.origin,
+        )
+        app.state.organizations = OrganizationService(
+            OrganizationRepository(sessionmaker(engine)), app.state.clock
+        )
         try:
             yield
         finally:
@@ -87,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     install_identity_errors(app)
     app.include_router(identity_router())
+    app.include_router(organization_router())
     router = APIRouter()
     problems: dict[int | str, dict[str, Any]] = {
         code: {"model": Problem, "content": {"application/problem+json": {}}}
@@ -140,7 +154,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     ]:
                         if parameter["name"] not in present:
                             parameters.append(parameter)
-                if path_url in {"/api/v1/me", "/api/v1/auth/refresh"}:
+                if path_url in {"/api/v1/me", "/api/v1/auth/refresh"} or path_url.startswith(
+                    "/api/v1/organizations"
+                ):
                     operation["security"] = [{"LocalSession": []}, {"SecureSession": []}]
                 for response in operation.get("responses", {}).values():
                     content = response.get("content", {})

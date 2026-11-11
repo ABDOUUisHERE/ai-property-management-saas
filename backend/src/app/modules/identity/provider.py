@@ -43,6 +43,31 @@ class SupabaseProvider:
         )
         return self._account(payload)
 
+    def request_recovery(self, email: str, *, redirect_to: str) -> None:
+        self._transport.request(
+            "POST", "/recover", payload={"email": email}, params={"redirect_to": redirect_to}
+        )
+
+    def verify_recovery(self, token_hash: SecretStr) -> AuthenticatedAccount:
+        # This method never accepts a browser-supplied access JWT or verification type.
+        return self._account(
+            self._transport.request(
+                "POST",
+                "/verify",
+                payload={"type": "recovery", "token_hash": token_hash.get_secret_value()},
+            )
+        )
+
+    def change_recovered_password(self, account: AuthenticatedAccount, password: SecretStr) -> None:
+        payload = self._transport.request(
+            "PUT",
+            "/user",
+            payload={"password": password.get_secret_value()},
+            bearer=account.tokens.access_token.get_secret_value(),
+        )
+        if payload.get("id") != str(account.identity.subject):
+            raise ProviderUnavailable()
+
     def refresh(
         self, refresh_token: SecretStr, *, expected_subject: UUID, expected_session_id: UUID
     ) -> AuthenticatedAccount:

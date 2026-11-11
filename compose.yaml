@@ -179,7 +179,7 @@ services:
       GOTRUE_API_PORT: "9999"
       API_EXTERNAL_URL: ${AUTH_EXTERNAL_URL:-http://127.0.0.1:19999}
       GOTRUE_SITE_URL: ${APP_SITE_URL:-http://127.0.0.1:18173}
-      GOTRUE_URI_ALLOW_LIST: ${APP_SITE_URL:-http://127.0.0.1:18173}
+      GOTRUE_URI_ALLOW_LIST: ${APP_SITE_URL:-http://127.0.0.1:18173},${APP_SITE_URL:-http://127.0.0.1:18173}/auth/reset
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${AUTH_DATABASE_PASSWORD:?Generate .env}@auth-db:5432/auth
       DB_NAMESPACE: auth
@@ -205,6 +205,8 @@ services:
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: /verify
       GOTRUE_MAILER_URLPATHS_INVITE: /verify
       GOTRUE_MAILER_URLPATHS_RECOVERY: /verify
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://api:8000/api/v1/auth/recovery-template
+      GOTRUE_MAILER_OTP_EXP: "3600"
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /verify
       GOTRUE_LOG_LEVEL: warn
     ports:

@@ -2,6 +2,11 @@
 
 ## État et autorisations
 
+Le 2026-11-11, « Oui, fusionne puis continue P03 » autorise la fusion de la
+PR #37 (T020–T022) : réalisée sur `35a5f1d`, après huit checks verts sur
+`8548949`. Poursuivre P03 et publier les incréments vérifiés ; obtenir un accord
+couvrant la fusion du prochain lot. P04 attend un nouvel accord.
+
 Le cadrage, le backlog et l'architecture ont été validés le 2026-11-10 (« je valide »). P01 est vérifiée et la PR #10 a été fusionnée sur accord explicite (« continue fusionne »), avec CI verte sur `6af120f`. P02 est fusionnée par la PR #21 sur `04726fe` le 2026-11-11, après CI verte sur `403fb81`. En réponse à la proposition fusion P02 puis démarrage P03, « fait le meilleur choix » délègue ce choix : fusion réalisée et P03 autorisée. Consulter les suivis [P01](docs/progress/phase-01.md), [P02](docs/progress/phase-02.md) et [P03](docs/progress/phase-03.md). Attendre l'accord avant P04 ou une phase suivante.
 
 L'utilisateur a autorisé la publication GitHub le 2026-11-10 (« oui ») : dépôt privé `ABDOUUisHERE/ai-property-management-saas`, push de `main` et `feat/t001-local-foundations`, neuf jalons, Issues P01 et PR de revue du lot validé. Poursuivre les mises à jour nécessaires à ce lot sans redemander cette autorisation. Les liens réels figurent dans [le suivi P01](docs/progress/phase-01.md).

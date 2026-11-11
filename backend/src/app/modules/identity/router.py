@@ -1,3 +1,4 @@
+import re
 from typing import Any
 from uuid import UUID
 
@@ -12,13 +13,13 @@ from app.modules.identity.contracts import (
     ProviderThrottled,
     ProviderUnavailable,
 )
+from app.modules.identity.recovery import RECOVERY_TEMPLATE
 from app.modules.identity.sessions import SessionBusy, SessionExpired, SessionService
 
 
-class Credentials(BaseModel):
+class EmailInput(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     email: str = Field(min_length=3, max_length=320, json_schema_extra={"format": "email"})
-    password: SecretStr = Field(min_length=1, max_length=128)
 
     @field_validator("email")
     @classmethod
@@ -33,8 +34,25 @@ class Credentials(BaseModel):
             raise ValueError("Invalid email") from None
 
 
+class Credentials(EmailInput):
+    password: SecretStr = Field(min_length=1, max_length=128)
+
+
 class Registration(Credentials):
     password: SecretStr = Field(min_length=12, max_length=128)
+
+
+class RecoveryConfirmation(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    token_hash: SecretStr = Field(min_length=56, max_length=56)
+    password: SecretStr = Field(min_length=12, max_length=128)
+
+    @field_validator("token_hash")
+    @classmethod
+    def token_format(cls, value: SecretStr) -> SecretStr:
+        if not re.fullmatch(r"[a-f0-9]{56}", value.get_secret_value()):
+            raise ValueError("Invalid recovery token")
+        return value
 
 
 class ProfileResponse(BaseModel):
@@ -74,6 +92,25 @@ def identity_router() -> APIRouter:
         except (AuthenticationRejected, ProviderThrottled):
             pass  # An account's existence and upstream rejection details are not public.
         return RegistrationAccepted()
+
+    @router.get("/auth/recovery-template", response_class=Response, include_in_schema=False)
+    def recovery_template() -> Response:
+        return Response(RECOVERY_TEMPLATE, media_type="text/html")
+
+    @router.post("/auth/recovery/request", status_code=202, response_model=RegistrationAccepted)
+    def request_recovery(body: EmailInput, request: Request) -> RegistrationAccepted:
+        request.app.state.auth_limiter.check("recovery-email", body.email.lower(), 5, 3600)
+        request.app.state.auth_recovery.request(body.email)
+        return RegistrationAccepted()
+
+    @router.post("/auth/recovery/confirm", status_code=204)
+    def confirm_recovery(body: RecoveryConfirmation, request: Request) -> Response:
+        request.app.state.auth_recovery.confirm(body.token_hash, body.password)
+        response = Response(status_code=204)
+        security = request.app.state.auth_security
+        security.clear(response, security.session_cookie)
+        security.clear(response, security.context_cookie)
+        return response
 
     @router.post("/auth/login", response_model=SessionResponse)
     def login(body: Credentials, request: Request, response: Response) -> SessionResponse:
