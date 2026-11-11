@@ -8,6 +8,16 @@ fusionnée sur `04726fe`, après les huit checks réussis du HEAD `403fb81`.
 Les Issues P02 #11–#20 sont fermées par cette fusion. P03 est autorisée ; P04
 attend un nouvel accord.
 
+## État actuel de la livraison
+
+La [PR #37](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/37)
+contient maintenant les profils persistants, les sessions opaques révocables et
+la façade HTTP protégée de T020–T022. Ces trois tâches sont implémentées et
+vérifiées localement, en attente de la CI du nouveau HEAD et de livraison revue.
+La PR n'est pas fusionnée. Le [plan de l'incrément](p03-session-plan.md) et
+[les contrats HTTP](../api/README.md) détaillent comportement et limites.
+T023–T034 restent à réaliser ; aucune isolation d'organisation n'est encore prouvée.
+
 ## Premier incrément publié
 
 Branche `feat/t020-identity-foundations`, depuis `04726fe`.
@@ -22,10 +32,9 @@ commits `595f45e` (adapter, vérification, chiffrement) et `cc719a8`
 - Tester les refus, les erreurs fournisseur, les rotations et la réception
   réelle de l'email local dans la CI.
 
-Ce premier incrément ne termine pas T020/T021 : le profil SQL, la persistance,
-la coordination des refresh et les routes HTTP protégées seront nécessaires
-avant leur clôture. T022–T034 restent à réaliser. Aucune migration ni route
-authentifiée n'est exposée dans cet incrément.
+Ce premier incrément laissait T020/T021 partielles. L'incrément suivant, décrit
+ci-dessous, ajoute le profil SQL, la persistance, la coordination des refresh
+et les routes HTTP protégées ; le présent paragraphe conserve l'historique.
 
 Docker Desktop est observé arrêté localement au démarrage de P03. Les tests qui
 exigent la pile réelle sont vérifiés sur les runners Linux de GitHub, sans
@@ -39,9 +48,9 @@ Leurs critères restent ouverts jusqu'à preuve et livraison complète.
 
 | Tâche | Issue | État de cet incrément |
 | --- | --- | --- |
-| T020 Adapter et profil | [#22](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/22) | Adapter implémenté ; profil et routes à venir |
-| T021 Sessions | [#23](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/23) | Vérification et chiffrement implémentés ; persistance et coordination à venir |
-| T022 Transport Auth | [#24](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/24) | À faire |
+| T020 Adapter et profil | [#22](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/22) | Implémentée et testée ; livraison en revue |
+| T021 Sessions | [#23](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/23) | Implémentée et testée ; livraison en revue |
+| T022 Transport Auth | [#24](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/24) | Implémentée et testée ; livraison en revue |
 | T023 Récupération | [#25](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/25) | À faire |
 | T024 Organisations | [#26](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/26) | À faire |
 | T025 Invitations | [#27](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/27) | À faire |
@@ -117,6 +126,48 @@ et les parcours navigateur : **121 tests réussis** (92 backend, 17 outillage,
 9 frontend, 3 navigateur). Les preuves restent attachées à ce SHA ; la CI du
 HEAD documentaire est également suivie sur la PR.
 
-Prochain lot : modèle `users`/`auth_sessions`, politiques RLS ciblées, migration et
-restauration, coordination persistante des refresh et révocation, puis façade
-HTTP avec cookies/CSRF/Origin/débit. Ne pas exposer un login sans ces protections.
+## Incrément suivant — Persistance et façade Auth
+
+Le commit `8f8262c` ajoute migration `0002_identity`, repository et service de
+session. `users` lie immuablement le sujet à un profil ; `auth_sessions` stocke
+uniquement le hash du cookie opaque, les jetons chiffrés et l'état de renouvellement.
+Les politiques RLS ciblent le sujet vérifié ou la capacité exacte de session,
+sans organisation fictive ni bypass global. Runtime et propriétaire de migration
+sont testés sous RLS forcée ; le dispatcher ne peut lire ces tables.
+
+La durée absolue est de 24 h par défaut, bornée à 7 jours et immuable pour le rôle
+runtime. Un lease de 30 s et une version coordonnent le refresh, sans connexion
+SQL pendant le réseau. Un concurrent reçoit `session_busy` ; un lease expiré ou
+un refresh ambigu impose un login. Logout commit la révocation et l'effacement
+du ciphertext avant l'appel fournisseur ; sa réponse tardive ne peut réactiver
+la session. La signature du JWT stocké est vérifiée avant résolution, puis l'état
+local est relu. Une panne JWKS seule bloque l'accès sans effacer la session.
+
+La façade expose register/login/me/refresh/logout et un endpoint CSRF. Elle
+applique Origin, CSRF signé lié au cookie, CORS restrictif, `no-store`, corps
+bornés et limites Redis atomiques par source et email hachés. Les seuls secrets
+créés en local sont dans `.env` ignoré, jamais dans Git ; les workers, dispatcher
+et processus de migration ne reçoivent pas les clés navigateur.
+
+Commandes exécutées le 2026-11-11 :
+
+- `uv run python scripts/dev.py up` : dix processus healthy et migration terminée.
+- `uv run python scripts/dev.py smoke` : PostgreSQL, Auth/Mailpit, Redis et S3 réussis.
+- `uv run python scripts/application.py test --broker-recovery` : **149 tests
+  backend réussis**, aucune exclusion, dont le parcours HTTP Auth réel et les
+  courses refresh/logout, rotation, rollback, pool et refus SQL.
+- `uv run python scripts/application.py smoke` : UI/proxy/API et reçu outbox réel réussis.
+- Ruff, mypy strict (27 fichiers), contrat OpenAPI, typage, lint, format, neuf
+  tests frontend et build réussis. `npm run check:api` ne produit plus de diff
+  après régénération et commit du client.
+- `uv run pytest` à la racine : **19 tests d'outillage réussis**. `npm run test:e2e` :
+  **3 parcours navigateur réussis** (shell/proxy, clavier/dialogue et mobile).
+  Total local distinct : **180 tests réussis**. La CI du HEAD final est suivie sur la PR.
+
+Le downgrade `0002_identity` supprime profils et sessions : testé uniquement dans
+la base jetable, jamais sur la base de développement. Voir le runbook pour la
+restauration et la rotation des clés. Le warning TestClient/httpx existant demeure.
+
+Prochain lot autorisé dans P03 : T023 récupération de compte, puis organisations,
+invitations, RBAC et écrans Auth. La fusion de ce lot attend un accord couvrant
+l'action ; P04 attend un nouvel accord.

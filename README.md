@@ -2,7 +2,7 @@
 
 Plateforme de gestion de locations de courte durée pour plusieurs entreprises indépendantes : biens et unités, voyageurs, réservations, paiements de test, ménage, maintenance et reporting. L'assistant IA est une extension V3, sans dépendance du MVP.
 
-**État au 11 novembre 2026 : P01 et P02 fusionnées, P03 en cours.** FastAPI, React/TypeScript, Alembic et les processus outbox/worker sont disponibles. Compose démarre dix processus persistants et un job de migration. Le premier incrément P03 ajoute les primitives Auth vérifiées et le chiffrement des jetons côté serveur ; les routes et sessions applicatives restent à livrer. Aucun déploiement AWS n'est réalisé. Voir les suivis [P01](docs/progress/phase-01.md), [P02](docs/progress/phase-02.md) et [P03](docs/progress/phase-03.md).
+**État au 11 novembre 2026 : P01 et P02 fusionnées, P03 en cours.** FastAPI, React/TypeScript, Alembic et les processus outbox/worker sont disponibles. Compose démarre dix processus persistants et un job de migration. La PR P03 ajoute profils, sessions persistantes révocables et routes Auth protégées par cookies/CSRF/Origin/débit. La récupération de compte, les organisations et les écrans Auth restent à livrer. Aucun déploiement AWS n'est réalisé. Voir les suivis [P01](docs/progress/phase-01.md), [P02](docs/progress/phase-02.md) et [P03](docs/progress/phase-03.md).
 
 [Dépôt GitHub](https://github.com/ABDOUUisHERE/ai-property-management-saas) · [PR P01 fusionnée](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/10) · [CI P01 après fusion](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42842746766)
 
@@ -63,4 +63,4 @@ La [PR P02 #21](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull
 
 ## Prochaine étape
 
-Poursuivre P03 autorisée : profils, persistance et coordination des sessions, cookies/CSRF, puis organisations et isolation. Les [quinze Issues P03](https://github.com/ABDOUUisHERE/ai-property-management-saas/milestone/3) conservent leurs critères ouverts. Huit Issues P01 sont clôturées avec preuves ; T003/#3 reste ouverte pour le choix de licence. La configuration distante actuelle est conservée ; aucune dépense AWS n'est engagée.
+Livrer les tâches T020–T022 en revue dans la PR #37, puis poursuivre P03 autorisée : récupération de compte, organisations, isolation et écrans Auth. Les [quinze Issues P03](https://github.com/ABDOUUisHERE/ai-property-management-saas/milestone/3) restent ouvertes tant que leur livraison n'est pas fusionnée. Huit Issues P01 sont clôturées avec preuves ; T003/#3 reste ouverte pour le choix de licence. La configuration distante actuelle est conservée ; aucune dépense AWS n'est engagée.

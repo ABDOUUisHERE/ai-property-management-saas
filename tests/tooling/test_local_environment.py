@@ -4,8 +4,8 @@ import copy
 import json
 import shutil
 import time
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import jwt
 import pytest
