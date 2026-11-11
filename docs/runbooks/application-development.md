@@ -76,6 +76,38 @@ et une nouvelle base locale. `alembic downgrade base` détruit les événements 
 reçus P02 ; son test est réservé à la base jetable. Ce n'est pas une stratégie
 de rollback de données de production.
 
+## Sessions Auth
+
+`scripts/dev.py init` étend les anciens profils locaux en ajoutant uniquement
+`SESSION_ENCRYPTION_KEY` et `CSRF_SECRET` manquants. Les autres credentials et
+volumes sont préservés. `scripts/application.py` transmet les paramètres Auth à
+l'API et à l'outillage nécessaire ; la migration n'a pas ces clés. Compose les
+réserve à l'API, sans accès worker/dispatcher. Ne pas copier un `.env` local en
+staging/production.
+
+En environnement hébergé, configurer `PMS_AUTH_URL`, `PMS_AUTH_ISSUER`,
+`PMS_BROWSER_ORIGIN` (origine HTTPS exacte), `PMS_SESSION_KEYS` (objet JSON
+ID de clé → clé AES-256 base64), `PMS_SESSION_ACTIVE_KEY_ID` et `PMS_CSRF_SECRET`.
+L'adapter cible actuellement Auth directement ; une passerelle hébergée avec
+clé publique requise demande son adaptation explicite. Aucun service-role Auth
+n'est fourni à l'API ; la capacité admin de recette expire après cinq minutes
+et n'existe que dans le processus de test.
+
+Pour une rotation de chiffrement : ajouter une nouvelle clé sous un ID distinct,
+garder les anciennes et sélectionner la nouvelle clé active sur toutes les
+instances. Les nouveaux logins et refresh écrivent avec la clé active. Retirer
+une ancienne clé seulement après ré-encryption de ses sessions ou expiration
+de toutes les sessions concernées (durée maximale configurée, au plus sept jours).
+Une perte de clé impose la reconnexion, sans repli en clair. La rotation du secret
+CSRF exige seulement un nouveau GET `/api/v1/auth/csrf` ; elle ne prolonge pas
+les sessions. Les compteurs de débit changent de namespace HMAC avec ce secret.
+
+La migration `0002_identity` est vérifiée en upgrade/réexécution/downgrade/upgrade
+sur la base jetable. Son downgrade détruit profils et sessions : restaurer une
+sauvegarde dans une nouvelle base pour un retour arrière avec données, puis
+forcer la reconnexion des sessions de la base restaurée. La purge périodique
+des sessions expirées/révoquées reste à ajouter avant usage avec données réelles.
+
 ## Outbox
 
 La transaction autorisée insère `outbox_events` et ses `outbox_deliveries`.

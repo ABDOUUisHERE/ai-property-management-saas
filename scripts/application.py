@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
+import jwt
 import psycopg
 from psycopg import sql
 
@@ -33,6 +36,12 @@ def application_environment(env_file: Path) -> dict[str, str]:
         "PMS_REDIS_HOST": "127.0.0.1",
         "PMS_REDIS_PORT": values["REDIS_PORT"],
         "PMS_REDIS_PASSWORD": values["REDIS_PASSWORD"],
+        "PMS_AUTH_URL": values["AUTH_EXTERNAL_URL"],
+        "PMS_AUTH_ISSUER": values["AUTH_EXTERNAL_URL"],
+        "PMS_BROWSER_ORIGIN": values["APP_SITE_URL"].rstrip("/"),
+        "PMS_SESSION_KEYS": json.dumps({"local-v1": values["SESSION_ENCRYPTION_KEY"]}),
+        "PMS_SESSION_ACTIVE_KEY_ID": "local-v1",
+        "PMS_CSRF_SECRET": values["CSRF_SECRET"],
     }
 
 
@@ -71,11 +80,33 @@ def run_backend(
     if arguments[0] == "uvicorn":
         environment.pop("PMS_MIGRATION_PASSWORD", None)
         environment.pop("PMS_DISPATCH_PASSWORD", None)
+    if arguments[0] == "alembic":
+        environment.pop("PMS_SESSION_KEYS", None)
+        environment.pop("PMS_CSRF_SECRET", None)
     if testing:
-        environment["PMS_TEST_ADMIN_PASSWORD"] = read_env(env_file)["DATABASE_ADMIN_PASSWORD"]
+        values = read_env(env_file)
+        environment["PMS_TEST_ADMIN_PASSWORD"] = values["DATABASE_ADMIN_PASSWORD"]
         environment["PMS_INTEGRATION"] = "1"
         environment["PMS_COMPOSE_PROJECT"] = read_env(env_file)["COMPOSE_PROJECT_NAME"]
         environment["PMS_BROKER_RECOVERY"] = "1" if broker_recovery else "0"
+        # A short-lived fixture capability exists only in the test child. The API,
+        # worker and dispatcher never receive Auth administration keys or tokens.
+        key = json.loads(values["AUTH_JWT_KEYS"])[0]
+        now = int(time.time())
+        environment["PMS_TEST_AUTH_URL"] = values["AUTH_EXTERNAL_URL"]
+        environment["PMS_TEST_MAIL_URL"] = f"http://127.0.0.1:{values['MAILPIT_HTTP_PORT']}"
+        environment["PMS_TEST_AUTH_ADMIN_TOKEN"] = jwt.encode(
+            {
+                "role": "service_role",
+                "aud": "authenticated",
+                "iss": values["AUTH_EXTERNAL_URL"],
+                "iat": now,
+                "exp": now + 300,
+            },
+            jwt.PyJWK.from_dict(key).key,
+            algorithm="ES256",
+            headers={"kid": key["kid"]},
+        )
     result = subprocess.run(  # noqa: S603 - fixed executable, list arguments, no shell
         [executable, "run", "--locked", *arguments],
         cwd=ROOT / "backend",

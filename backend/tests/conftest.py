@@ -1,4 +1,6 @@
+import base64
 import os
+import secrets
 from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
@@ -21,7 +23,9 @@ def pytest_runtest_makereport(item, call):
     secrets = [
         value
         for key, value in os.environ.items()
-        if key.startswith("PMS_") and "PASSWORD" in key and len(value) >= 24
+        if key.startswith("PMS_")
+        and any(marker in key for marker in ("PASSWORD", "TOKEN", "SECRET", "KEY"))
+        and len(value) >= 24
     ]
     if report.failed:
         rendered = str(report.longrepr)
@@ -45,6 +49,8 @@ def settings() -> Settings:
         redis_password="b" * 48,
         database_port=1,
         database_timeout_seconds=1,
+        session_keys={"local-v1": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()},
+        csrf_secret=secrets.token_hex(32),
     )
 
 

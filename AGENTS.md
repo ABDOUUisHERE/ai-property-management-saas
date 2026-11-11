@@ -2,11 +2,11 @@
 
 ## État et autorisations
 
-Le cadrage, le backlog et l'architecture ont été validés le 2026-11-10 (« je valide »). P01 est vérifiée et la PR #10 a été fusionnée sur accord explicite (« continue fusionne »), avec CI verte sur `6af120f`. L'utilisateur a ensuite autorisé P02 (« continue »). Consulter [le suivi P01](docs/progress/phase-01.md) et [le suivi P02](docs/progress/phase-02.md) pour les preuves et limites. Attendre l'accord avant P03 ou une phase suivante.
+Le cadrage, le backlog et l'architecture ont été validés le 2026-11-10 (« je valide »). P01 est vérifiée et la PR #10 a été fusionnée sur accord explicite (« continue fusionne »), avec CI verte sur `6af120f`. P02 est fusionnée par la PR #21 sur `04726fe` le 2026-11-11, après CI verte sur `403fb81`. En réponse à la proposition fusion P02 puis démarrage P03, « fait le meilleur choix » délègue ce choix : fusion réalisée et P03 autorisée. Consulter les suivis [P01](docs/progress/phase-01.md), [P02](docs/progress/phase-02.md) et [P03](docs/progress/phase-03.md). Attendre l'accord avant P04 ou une phase suivante.
 
 L'utilisateur a autorisé la publication GitHub le 2026-11-10 (« oui ») : dépôt privé `ABDOUUisHERE/ai-property-management-saas`, push de `main` et `feat/t001-local-foundations`, neuf jalons, Issues P01 et PR de revue du lot validé. Poursuivre les mises à jour nécessaires à ce lot sans redemander cette autorisation. Les liens réels figurent dans [le suivi P01](docs/progress/phase-01.md).
 
-La fusion de P01 est réalisée. Le push P02 a été autorisé (« push ca ») et effectué sur `9e53603`. Le 2026-11-11, « continue […] le max de contributions » couvre la livraison GitHub P02 : Issues, PR #21, corrections vérifiées et leurs pushes. La fusion de P02, P03 et toute dépense AWS restent soumises à un accord couvrant l'action. Conserver les accords déjà obtenus. La protection de `main` avait été refusée lorsque le dépôt était privé ; sa visibilité a depuis été observée publique. Préserver la configuration distante actuelle.
+La publication GitHub et sa poursuite sont autorisées (« oui », « push ca », puis « continue […] le max de contributions »). L'accord délégué du 2026-11-11 couvre le démarrage et la publication des incréments P03 : Issues du backlog, branche, commits vérifiés et PR de revue. La fusion d'un lot P03 et toute dépense AWS demandent un accord couvrant l'action. Conserver les accords déjà obtenus. La protection de `main` avait été refusée lorsque le dépôt était privé ; sa visibilité a depuis été observée publique. Préserver la configuration distante actuelle.
 
 ## Avant un changement
 
