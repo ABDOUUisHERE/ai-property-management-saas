@@ -21,7 +21,9 @@ def pytest_runtest_makereport(item, call):
     secrets = [
         value
         for key, value in os.environ.items()
-        if key.startswith("PMS_") and "PASSWORD" in key and len(value) >= 24
+        if key.startswith("PMS_")
+        and any(marker in key for marker in ("PASSWORD", "TOKEN", "SECRET", "KEY"))
+        and len(value) >= 24
     ]
     if report.failed:
         rendered = str(report.longrepr)
