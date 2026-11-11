@@ -9,6 +9,7 @@ from app.modules.identity.contracts import (
     ProviderTokens,
     ProviderUnavailable,
     RefreshUncertain,
+    VerifiedIdentity,
 )
 from app.modules.identity.transport import AuthEndpoint, AuthTransport
 from app.modules.identity.verification import AccessTokenVerifier
@@ -23,6 +24,9 @@ class SupabaseProvider:
 
     def close(self) -> None:
         self._transport.close()
+
+    def verify_access(self, access_token: SecretStr) -> VerifiedIdentity:
+        return self.verifier.verify(access_token.get_secret_value())
 
     def register(self, email: str, password: SecretStr) -> None:
         # Do not return the upstream signup response, which may identify an account.

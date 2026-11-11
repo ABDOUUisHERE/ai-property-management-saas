@@ -1,5 +1,6 @@
 """Exercise the production adapter against local Auth and a real Mailpit email."""
 
+import base64
 import html
 import os
 import re
@@ -11,10 +12,15 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from pydantic import SecretStr
+from sqlalchemy.orm import sessionmaker
 
+from app.core.context import SystemClock
 from app.modules.identity.contracts import AuthenticationRejected, RefreshUncertain
 from app.modules.identity.provider import SupabaseProvider
+from app.modules.identity.repository import IdentityRepository
+from app.modules.identity.sessions import SessionExpired, SessionService
 from app.modules.identity.transport import AuthEndpoint
+from app.modules.identity.vault import TokenVault
 
 pytestmark = pytest.mark.integration
 
@@ -37,7 +43,7 @@ def confirmation_link(client: httpx.Client, mail_url: str, email: str, auth_url:
     pytest.fail("Confirmation email not received in local Mailpit")
 
 
-def test_real_email_login_refresh_and_provider_logout():
+def test_real_email_login_refresh_and_provider_logout(engine):
     if os.environ.get("PMS_INTEGRATION") != "1":
         pytest.skip("Use scripts/application.py test for the isolated local Auth stack")
     auth_url, mail_url = os.environ["PMS_TEST_AUTH_URL"], os.environ["PMS_TEST_MAIL_URL"]
@@ -70,6 +76,24 @@ def test_real_email_login_refresh_and_provider_logout():
                     expected_subject=account.identity.subject,
                     expected_session_id=account.identity.provider_session_id,
                 )
+            vault = TokenVault(
+                {"test": SecretStr(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())},
+                active_key_id="test",
+            )
+            service = SessionService(
+                IdentityRepository(sessionmaker(engine)), provider, vault, SystemClock()
+            )
+            local = service.login(email, password)
+            repeated = service.login(email, password)
+            assert local.profile.id == repeated.profile.id
+            assert service.resolve(local.opaque).email == email
+            assert service.resolve(local.opaque, force_refresh=True) == local.profile
+            service.logout(local.opaque)
+            with pytest.raises(SessionExpired):
+                service.resolve(local.opaque)
+            # Logging out one provider session must preserve a second login.
+            assert service.resolve(repeated.opaque) == repeated.profile
+            service.logout(repeated.opaque)
         finally:
             provider.close()
             # The public adapter deliberately hides signup account identifiers.
