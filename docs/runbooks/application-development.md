@@ -49,7 +49,12 @@ uv run python scripts/application.py test --broker-recovery
 ```
 
 Cette commande active explicitement les tests PostgreSQL et fournit le secret
-administrateur au seul processus de test. Avec `--broker-recovery`, les images
+administrateur au seul processus de test. Les commandes de ce wrapper construisent
+leur espace `PMS_*` depuis le fichier local validé : une variable héritée du
+terminal ne peut pas choisir une autre base ni transmettre un secret administrateur
+à l'API. Le lancement direct d'Uvicorn conserve la configuration par environnement.
+
+Avec `--broker-recovery`, les images
 Compose doivent être déjà construites ; deux conteneurs jetables prouvent la
 récupération après perte d'un message Redis. Sans cette option, seul ce test
 est explicitement ignoré. La fixture crée sa propre base

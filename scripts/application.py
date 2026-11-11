@@ -17,13 +17,16 @@ from scripts.dev import ROOT, init_environment, read_env, validate_env  # noqa: 
 
 
 def application_environment(env_file: Path) -> dict[str, str]:
+    """The validated local file owns the PMS namespace, including its target DB."""
     values = read_env(env_file)
     validate_env(values)
     return {
-        **os.environ,
+        **{key: value for key, value in os.environ.items() if not key.startswith("PMS_")},
         "PMS_ENVIRONMENT": "local",
+        "PMS_PROCESS": "api",
         "PMS_DATABASE_HOST": "127.0.0.1",
         "PMS_DATABASE_PORT": values["DATABASE_PORT"],
+        "PMS_DATABASE_NAME": "property_management",
         "PMS_DATABASE_PASSWORD": values["DATABASE_RUNTIME_PASSWORD"],
         "PMS_MIGRATION_PASSWORD": values["DATABASE_MIGRATION_PASSWORD"],
         "PMS_DISPATCH_PASSWORD": values["DATABASE_DISPATCH_PASSWORD"],
