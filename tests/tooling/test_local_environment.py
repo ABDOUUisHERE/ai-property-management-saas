@@ -4,12 +4,13 @@ import copy
 import json
 import shutil
 import time
+from types import SimpleNamespace
 from pathlib import Path
 
 import jwt
 import pytest
 
-from scripts.application import application_environment
+from scripts.application import application_environment, run_backend
 from scripts.dev import (
     ROOT,
     SECRET_KEYS,
@@ -48,6 +49,20 @@ def test_application_target_and_credentials_ignore_inherited_shell_values(
     assert environment["PMS_DATABASE_HOST"] == "127.0.0.1"
     assert environment["PMS_PROCESS"] == "api"
     assert "PMS_TEST_ADMIN_PASSWORD" not in environment
+
+
+def test_migration_child_does_not_receive_browser_session_secrets(initialized, monkeypatch):
+    observed = []
+    monkeypatch.setattr("scripts.application.shutil.which", lambda name: "uv")
+
+    def child(*args, **kwargs):
+        observed.append(set(kwargs["env"]))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("scripts.application.subprocess.run", child)
+    run_backend(["alembic", "upgrade", "head"], initialized / ".env")
+    assert "PMS_MIGRATION_PASSWORD" in observed[0]
+    assert "PMS_SESSION_KEYS" not in observed[0] and "PMS_CSRF_SECRET" not in observed[0]
 
 
 def test_generated_service_credentials_are_distinct_and_not_template_values(
@@ -106,6 +121,25 @@ def test_invalid_existing_env_is_not_replaced(initialized: Path) -> None:
     with pytest.raises(ValueError):
         init_environment(initialized)
     assert path.read_bytes() == before
+
+
+def test_p02_upgrade_preserves_credentials_and_adds_separate_session_secrets(initialized: Path):
+    path = initialized / ".env"
+    original = read_env(path)
+    original.pop("SESSION_ENCRYPTION_KEY")
+    original.pop("CSRF_SECRET")
+    path.write_text(
+        "\n".join(f"{key}='{value}'" for key, value in original.items()), encoding="utf-8"
+    )
+    before = path.read_bytes()
+    assert not init_environment(initialized)
+    upgraded = read_env(path)
+    assert {key: upgraded[key] for key in original} == original
+    assert path.read_bytes().startswith(before)
+    assert len(upgraded["CSRF_SECRET"]) == 64
+    second = path.read_bytes()
+    assert not init_environment(initialized)
+    assert path.read_bytes() == second
 
 
 def test_duplicate_env_key_is_rejected(tmp_path: Path) -> None:

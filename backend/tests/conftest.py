@@ -1,4 +1,6 @@
+import base64
 import os
+import secrets
 from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
@@ -47,6 +49,8 @@ def settings() -> Settings:
         redis_password="b" * 48,
         database_port=1,
         database_timeout_seconds=1,
+        session_keys={"local-v1": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()},
+        csrf_secret=secrets.token_hex(32),
     )
 
 

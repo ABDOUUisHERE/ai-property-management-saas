@@ -11,9 +11,11 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from sqlalchemy.orm import sessionmaker
 
+from app.bootstrap import create_app
 from app.core.context import SystemClock
 from app.modules.identity.contracts import AuthenticationRejected, RefreshUncertain
 from app.modules.identity.provider import SupabaseProvider
@@ -43,7 +45,7 @@ def confirmation_link(client: httpx.Client, mail_url: str, email: str, auth_url:
     pytest.fail("Confirmation email not received in local Mailpit")
 
 
-def test_real_email_login_refresh_and_provider_logout(engine):
+def test_real_email_login_refresh_and_provider_logout(engine, database):
     if os.environ.get("PMS_INTEGRATION") != "1":
         pytest.skip("Use scripts/application.py test for the isolated local Auth stack")
     auth_url, mail_url = os.environ["PMS_TEST_AUTH_URL"], os.environ["PMS_TEST_MAIL_URL"]
@@ -56,7 +58,21 @@ def test_real_email_login_refresh_and_provider_logout(engine):
     headers = {"Authorization": f"Bearer {os.environ['PMS_TEST_AUTH_ADMIN_TOKEN']}"}
     with httpx.Client(timeout=5, follow_redirects=False, trust_env=False) as client:
         try:
-            assert provider.register(email, password) is None
+            with TestClient(create_app(database), base_url=database.browser_origin) as browser:
+                token_response = browser.get("/api/v1/auth/csrf")
+                assert token_response.status_code == 200
+                registered = browser.post(
+                    "/api/v1/auth/register",
+                    json={
+                        "email": email,
+                        "password": password.get_secret_value(),
+                    },
+                    headers={
+                        "Origin": database.browser_origin,
+                        "X-CSRF-Token": token_response.json()["csrf_token"],
+                    },
+                )
+                assert registered.status_code == 202 and registered.json() == {"status": "accepted"}
             with pytest.raises(AuthenticationRejected):
                 provider.login(email, password)
             link = confirmation_link(client, mail_url, email, auth_url)
@@ -94,6 +110,35 @@ def test_real_email_login_refresh_and_provider_logout(engine):
             # Logging out one provider session must preserve a second login.
             assert service.resolve(repeated.opaque) == repeated.profile
             service.logout(repeated.opaque)
+            with TestClient(create_app(database), base_url=database.browser_origin) as browser:
+                token_response = browser.get("/api/v1/auth/csrf")
+                signed_headers = {
+                    "Origin": database.browser_origin,
+                    "X-CSRF-Token": token_response.json()["csrf_token"],
+                }
+                logged_in = browser.post(
+                    "/api/v1/auth/login",
+                    json={
+                        "email": email,
+                        "password": password.get_secret_value(),
+                    },
+                    headers=signed_headers,
+                )
+                assert logged_in.status_code == 200
+                assert set(logged_in.json()) == {"profile", "expires_at"}
+                assert logged_in.json()["profile"]["id"] == str(local.profile.id)
+                opaque = browser.cookies.get("pms_session")
+                assert opaque and opaque not in logged_in.text
+                me = browser.get("/api/v1/me")
+                assert me.status_code == 200 and me.json()["email"] == email
+                token_response = browser.get("/api/v1/auth/csrf")
+                signed_headers["X-CSRF-Token"] = token_response.json()["csrf_token"]
+                renewed = browser.post("/api/v1/auth/refresh", headers=signed_headers)
+                assert renewed.status_code == 200
+                logged_out = browser.post("/api/v1/auth/logout", headers=signed_headers)
+                assert logged_out.status_code == 204
+                rejected = browser.get("/api/v1/me", headers={"Cookie": f"pms_session={opaque}"})
+                assert rejected.status_code == 401
         finally:
             provider.close()
             # The public adapter deliberately hides signup account identifiers.

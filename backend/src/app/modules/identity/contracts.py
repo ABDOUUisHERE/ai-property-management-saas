@@ -15,6 +15,10 @@ class ProviderUnavailable(Exception):
         super().__init__("Authentication provider unavailable")
 
 
+class ProviderThrottled(ProviderUnavailable):
+    """Keep provider signup throttling indistinguishable from an accepted signup."""
+
+
 class RefreshUncertain(Exception):
     """A refresh may have rotated remotely; revoke locally instead of retrying it."""
 

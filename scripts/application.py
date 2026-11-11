@@ -36,6 +36,12 @@ def application_environment(env_file: Path) -> dict[str, str]:
         "PMS_REDIS_HOST": "127.0.0.1",
         "PMS_REDIS_PORT": values["REDIS_PORT"],
         "PMS_REDIS_PASSWORD": values["REDIS_PASSWORD"],
+        "PMS_AUTH_URL": values["AUTH_EXTERNAL_URL"],
+        "PMS_AUTH_ISSUER": values["AUTH_EXTERNAL_URL"],
+        "PMS_BROWSER_ORIGIN": values["APP_SITE_URL"].rstrip("/"),
+        "PMS_SESSION_KEYS": json.dumps({"local-v1": values["SESSION_ENCRYPTION_KEY"]}),
+        "PMS_SESSION_ACTIVE_KEY_ID": "local-v1",
+        "PMS_CSRF_SECRET": values["CSRF_SECRET"],
     }
 
 
@@ -74,6 +80,9 @@ def run_backend(
     if arguments[0] == "uvicorn":
         environment.pop("PMS_MIGRATION_PASSWORD", None)
         environment.pop("PMS_DISPATCH_PASSWORD", None)
+    if arguments[0] == "alembic":
+        environment.pop("PMS_SESSION_KEYS", None)
+        environment.pop("PMS_CSRF_SECRET", None)
     if testing:
         values = read_env(env_file)
         environment["PMS_TEST_ADMIN_PASSWORD"] = values["DATABASE_ADMIN_PASSWORD"]

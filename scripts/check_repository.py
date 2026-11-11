@@ -110,6 +110,9 @@ def check_compose(path: Path) -> int:
             raise ValueError(f"Runtime receives migration/admin credentials: {name}")
     if "PMS_DATABASE_PASSWORD" in services["dispatcher"]["environment"]:
         raise ValueError("Dispatcher must not receive ordinary business credentials")
+    for name in ("worker", "dispatcher", "migrate"):
+        if {"PMS_SESSION_KEYS", "PMS_CSRF_SECRET"} & services[name]["environment"].keys():
+            raise ValueError(f"Non-API process receives browser session secrets: {name}")
     if auth["GOTRUE_MAILER_AUTOCONFIRM"] != "false" or not auth.get("GOTRUE_JWT_KEYS"):
         raise ValueError("Auth must confirm emails and configure asymmetric keys")
     return len(services)

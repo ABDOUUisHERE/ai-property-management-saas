@@ -1,5 +1,14 @@
 name: ${COMPOSE_PROJECT_NAME:-pms_dev}
 
+x-runtime-environment: &runtime
+  PMS_ENVIRONMENT: local
+  PMS_DATABASE_HOST: postgres
+  PMS_DATABASE_PORT: "5432"
+  PMS_DATABASE_PASSWORD: ${DATABASE_RUNTIME_PASSWORD:?Generate .env}
+  PMS_REDIS_HOST: redis
+  PMS_REDIS_PORT: "6379"
+  PMS_REDIS_PASSWORD: ${REDIS_PASSWORD:?Generate .env}
+
 x-postgres: &postgres
   image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
   restart: unless-stopped
@@ -47,26 +56,30 @@ services:
   api:
     build: *backend-build
     command: [uvicorn, app.main:create_app, --factory, --host, 0.0.0.0, --port, "8000", --no-access-log, --no-proxy-headers]
-    environment: &runtime
-      PMS_ENVIRONMENT: local
-      PMS_DATABASE_HOST: postgres
-      PMS_DATABASE_PORT: "5432"
-      PMS_DATABASE_PASSWORD: ${DATABASE_RUNTIME_PASSWORD:?Generate .env}
-      PMS_REDIS_HOST: redis
-      PMS_REDIS_PORT: "6379"
-      PMS_REDIS_PASSWORD: ${REDIS_PASSWORD:?Generate .env}
+    environment:
+      <<: *runtime
+      PMS_AUTH_URL: http://auth:9999
+      PMS_AUTH_ISSUER: ${AUTH_EXTERNAL_URL:-http://127.0.0.1:19999}
+      PMS_BROWSER_ORIGIN: ${APP_SITE_URL:-http://127.0.0.1:18173}
+      PMS_SESSION_KEYS: '{"local-v1":"${SESSION_ENCRYPTION_KEY:?Run init}"}'
+      PMS_SESSION_ACTIVE_KEY_ID: local-v1
+      PMS_CSRF_SECRET: ${CSRF_SECRET:?Run init}
     ports: ["127.0.0.1:18000:8000"]
     depends_on:
       migrate:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      auth:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
       interval: 5s
       timeout: 4s
       retries: 20
-    networks: [business]
+    networks: [business, identity]
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]

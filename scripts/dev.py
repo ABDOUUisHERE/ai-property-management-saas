@@ -36,6 +36,7 @@ SECRET_KEYS = (
     "AUTH_DATABASE_ADMIN_PASSWORD",
     "AUTH_DATABASE_PASSWORD",
     "AUTH_JWT_SECRET",
+    "CSRF_SECRET",
     "REDIS_PASSWORD",
     "S3_ACCESS_KEY",
     "S3_SECRET_KEY",
@@ -107,6 +108,14 @@ def validate_env(values: dict[str, str]) -> None:
             raise ValueError(f"{key} requires a generated local credential")
     if len({values[key] for key in SECRET_KEYS}) != len(SECRET_KEYS):
         raise ValueError("Local service credentials must be distinct")
+    try:
+        session_key = base64.b64decode(
+            values["SESSION_ENCRYPTION_KEY"], altchars=b"-_", validate=True
+        )
+    except ValueError:
+        raise ValueError("A generated session encryption key is required") from None
+    if len(session_key) != 32:
+        raise ValueError("A generated session encryption key is required")
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", values["S3_BUCKET"]):
         raise ValueError("Invalid local S3 bucket name")
     keys = json.loads(values["AUTH_JWT_KEYS"])
@@ -119,20 +128,28 @@ def init_environment(root: Path = ROOT, env_file: Path | None = None) -> bool:
     path = env_file or root / ".env"
     if path.exists():
         values = read_env(path)
-        # P02 adds a separate capability for routing durable jobs. Preserve every
-        # existing credential; append only the new key after validating the result.
-        if "DATABASE_DISPATCH_PASSWORD" not in values:
+        # Extend old profiles without rotating any provisioned credentials.
+        additions = {"DATABASE_DISPATCH_PASSWORD", "SESSION_ENCRYPTION_KEY", "CSRF_SECRET"}
+        if additions - values.keys():
             lock = path.with_name(path.name + ".upgrade.lock")
             descriptor = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             os.close(descriptor)
             try:
                 values = read_env(path)
-                if "DATABASE_DISPATCH_PASSWORD" not in values:
-                    values["DATABASE_DISPATCH_PASSWORD"] = secrets.token_hex(24)
+                missing = sorted(additions - values.keys())
+                if missing:
+                    for key in missing:
+                        values[key] = (
+                            base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
+                            if key == "SESSION_ENCRYPTION_KEY"
+                            else secrets.token_hex(
+                                24 if key == "DATABASE_DISPATCH_PASSWORD" else 32
+                            )
+                        )
                     validate_env(values)
                     with path.open("a", encoding="utf-8", newline="\n") as stream:
                         stream.write(
-                            f"\nDATABASE_DISPATCH_PASSWORD='{values['DATABASE_DISPATCH_PASSWORD']}'\n"
+                            "\n" + "\n".join(f"{key}='{values[key]}'" for key in missing) + "\n"
                         )
             finally:
                 lock.unlink()
@@ -140,6 +157,8 @@ def init_environment(root: Path = ROOT, env_file: Path | None = None) -> bool:
         return False
     values = read_env(root / ".env.example")
     values.update({key: secrets.token_hex(24) for key in SECRET_KEYS})
+    values["CSRF_SECRET"] = secrets.token_hex(32)
+    values["SESSION_ENCRYPTION_KEY"] = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
     values["AUTH_JWT_KEYS"] = json.dumps([signing_key()], separators=(",", ":"))
     validate_env(values)
     content = "# Generated for local development only. Never commit this file.\n"

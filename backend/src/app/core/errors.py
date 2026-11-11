@@ -7,8 +7,9 @@ from app.core.contracts import Problem
 
 
 class ApplicationError(Exception):
-    def __init__(self, status: int, code: str, title: str):
+    def __init__(self, status: int, code: str, title: str, *, retry_after: int | None = None):
         self.status, self.code, self.title = status, code, title
+        self.retry_after = retry_after
 
 
 def problem_response(request: Request, status: int, code: str, title: str) -> JSONResponse:
@@ -23,14 +24,20 @@ def problem_response(request: Request, status: int, code: str, title: str) -> JS
         request_id=request.state.request_id,
     )
     return JSONResponse(
-        problem.model_dump(), status_code=status, media_type="application/problem+json"
+        problem.model_dump(),
+        status_code=status,
+        media_type="application/problem+json",
+        headers={"Cache-Control": "no-store"},
     )
 
 
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApplicationError)
     async def application_error(request: Request, error: ApplicationError) -> JSONResponse:
-        return problem_response(request, error.status, error.code, error.title)
+        response = problem_response(request, error.status, error.code, error.title)
+        if error.retry_after is not None:
+            response.headers["Retry-After"] = str(error.retry_after)
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, error: RequestValidationError) -> JSONResponse:

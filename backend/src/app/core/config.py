@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     redis_password: SecretStr
     queue_name: str = Field(default="pms.events", pattern=r"^[a-zA-Z0-9_.-]{1,100}$")
     dispatch_password: SecretStr | None = None
+    auth_url: str = "http://127.0.0.1:19999"
+    auth_issuer: str = "http://127.0.0.1:19999"
+    browser_origin: str = "http://127.0.0.1:18173"
+    session_keys: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
+    session_active_key_id: str = "local-v1"
+    csrf_secret: SecretStr | None = None
 
     @model_validator(mode="after")
     def validate_credentials(self) -> "Settings":
@@ -32,6 +38,13 @@ class Settings(BaseSettings):
         for secret in (required, self.redis_password):
             if len(secret.get_secret_value()) < 24:
                 raise ValueError("Generated credentials of at least 24 characters are required")
+        if self.process == "api" and (
+            not self.session_keys
+            or self.session_active_key_id not in self.session_keys
+            or self.csrf_secret is None
+            or len(self.csrf_secret.get_secret_value()) < 48
+        ):
+            raise ValueError("API session encryption and CSRF secrets are required")
         return self
 
     def database_url(self, *, dispatcher: bool = False) -> URL:

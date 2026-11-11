@@ -7,7 +7,11 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.modules.identity.contracts import AuthenticationRejected, ProviderUnavailable
+from app.modules.identity.contracts import (
+    AuthenticationRejected,
+    ProviderThrottled,
+    ProviderUnavailable,
+)
 
 MAX_RESPONSE_BYTES = 65536
 
@@ -81,7 +85,9 @@ class AuthTransport:
                 params=params,
                 headers=headers,
             ) as response:
-                if response.status_code == 429 or response.status_code >= 500:
+                if response.status_code == 429:
+                    raise ProviderThrottled()
+                if response.status_code >= 500:
                     raise ProviderUnavailable()
                 if 400 <= response.status_code < 500:
                     raise AuthenticationRejected()
