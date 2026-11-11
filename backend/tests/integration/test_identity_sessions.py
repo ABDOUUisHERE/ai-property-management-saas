@@ -24,7 +24,7 @@ from app.modules.identity.contracts import (
     VerifiedIdentity,
 )
 from app.modules.identity.recovery import RecoveryService
-from app.modules.identity.repository import IdentityRepository
+from app.modules.identity.repository import IdentityRepository, IdentityTransaction
 from app.modules.identity.sessions import SessionBusy, SessionExpired, SessionService, session_hash
 from app.modules.identity.vault import TokenVault
 
@@ -696,3 +696,53 @@ def test_foreign_subject_cannot_alter_recovery_barrier(identity, engine):
             == []
         )
     assert service.resolve(old.opaque) == old.profile
+
+
+def test_recovery_sql_failure_rolls_back_barrier_before_remote_password_change(
+    identity, monkeypatch
+):
+    service, repository, authority, clock, _ = identity
+    old = login(service)
+    recovery, remote = recovery_service(repository, authority, clock)
+    original = IdentityTransaction.begin_recovery
+
+    def fail_after_write(self, *args):
+        assert original(self, *args)
+        raise SQLAlchemyError("simulated rollback")
+
+    monkeypatch.setattr(IdentityTransaction, "begin_recovery", fail_after_write)
+    with pytest.raises(SQLAlchemyError):
+        recovery.confirm(SecretStr("a" * 56), SecretStr("fictional-new-password"))
+    assert remote.changes == 0
+    assert service.resolve(old.opaque) == old.profile
+
+
+@pytest.mark.parametrize("outcome", ["late-success", "late-timeout"])
+def test_stale_recovery_outcome_fences_sessions_created_after_a_newer_recovery(identity, outcome):
+    service, repository, authority, clock, _ = identity
+    old = login(service)
+    recovery, remote = recovery_service(repository, authority, clock)
+    created = []
+
+    def newer_recovery_finishes_first():
+        if remote.changes != 1:
+            return
+        clock.advance(seconds=31)
+        recovery.confirm(SecretStr("b" * 56), SecretStr("fictional-newer-password"))
+        clock.advance(seconds=1)
+        created.append(login(service))
+        if outcome == "late-timeout":
+            raise ProviderUnavailable()
+
+    remote.before_change = newer_recovery_finishes_first
+    with pytest.raises(SessionBusy if outcome == "late-success" else ProviderUnavailable):
+        recovery.confirm(SecretStr("a" * 56), SecretStr("fictional-new-password"))
+    for session in (old, *created):
+        with pytest.raises(SessionExpired):
+            service.resolve(session.opaque)
+    with pytest.raises(SessionExpired):
+        login(service)
+    clock.advance(seconds=31)
+    recovery.confirm(SecretStr("c" * 56), SecretStr("fictional-final-password"))
+    clock.advance(seconds=1)
+    assert login(service).profile == old.profile

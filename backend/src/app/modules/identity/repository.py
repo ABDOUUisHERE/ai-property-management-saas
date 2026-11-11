@@ -130,17 +130,33 @@ class IdentityTransaction:
             is not None
         )
 
-    def finish_recovery(self, subject: UUID, owner: UUID, now: datetime) -> bool:
+    def finish_recovery(
+        self, subject: UUID, owner: UUID, started_at: datetime, now: datetime
+    ) -> bool:
         return (
             self._session.execute(
                 text(
-                    "UPDATE users SET recovery_owner=NULL, recovery_deadline=NULL "
+                    "UPDATE users SET recovery_owner=NULL, recovery_deadline=NULL, "
+                    "sessions_valid_after=greatest(sessions_valid_after, :now) "
                     "WHERE auth_subject=:subject AND recovery_owner=:owner "
-                    "AND recovery_deadline > :now RETURNING id"
+                    "AND recovery_deadline > :now AND sessions_valid_after=:started RETURNING id"
                 ),
-                {"subject": subject, "owner": owner, "now": now},
+                {"subject": subject, "owner": owner, "started": started_at, "now": now},
             ).scalar_one_or_none()
             is not None
+        )
+
+    def recovery_uncertain(
+        self, subject: UUID, owner: UUID, now: datetime, deadline: datetime
+    ) -> None:
+        self._session.execute(
+            text(
+                "UPDATE users SET sessions_valid_after=greatest(sessions_valid_after, :now), "
+                "recovery_owner=coalesce(recovery_owner, :owner), "
+                "recovery_deadline=coalesce(recovery_deadline, :deadline) "
+                "WHERE auth_subject=:subject"
+            ),
+            {"subject": subject, "owner": owner, "now": now, "deadline": deadline},
         )
 
     def claim_refresh(self, record: StoredSession, owner: UUID, deadline: datetime) -> None:

@@ -3,7 +3,7 @@
 import secrets
 from datetime import timedelta
 from typing import Protocol
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import SecretStr
 
@@ -62,24 +62,43 @@ class RecoveryService:
             with self._repository.transaction(
                 session_hash=capability, verified_subject=account.identity.subject
             ) as transaction:
-                now = self._clock.now()
-                transaction.upsert_profile(account.identity.subject, account.email, now)
+                started_at = self._clock.now()
+                transaction.upsert_profile(account.identity.subject, account.email, started_at)
                 if not transaction.begin_recovery(
-                    account.identity.subject, owner, now, now + timedelta(seconds=30)
+                    account.identity.subject, owner, started_at, started_at + timedelta(seconds=30)
                 ):
                     raise SessionBusy()
             # Committed barrier precedes the network. An ambiguous failure leaves
             # it closed; a new recovery email can restart after the lease expires.
-            self._authority.change_recovered_password(account, password)
+            try:
+                self._authority.change_recovered_password(account, password)
+            except (AuthenticationRejected, ProviderUnavailable):
+                self._uncertain(account, capability, owner)
+                raise
             with self._repository.transaction(
                 session_hash=capability, verified_subject=account.identity.subject
             ) as transaction:
-                if not transaction.finish_recovery(
-                    account.identity.subject, owner, self._clock.now()
-                ):
-                    raise SessionBusy()
+                completed = transaction.finish_recovery(
+                    account.identity.subject, owner, started_at, self._clock.now()
+                )
+                if not completed:
+                    now = self._clock.now()
+                    transaction.recovery_uncertain(
+                        account.identity.subject, owner, now, now + timedelta(seconds=30)
+                    )
+            if not completed:
+                raise SessionBusy()
         finally:
             try:
                 self._authority.logout(account.tokens.access_token)
             except (AuthenticationRejected, ProviderUnavailable):
                 pass
+
+    def _uncertain(self, account: AuthenticatedAccount, capability: str, owner: UUID) -> None:
+        with self._repository.transaction(
+            session_hash=capability, verified_subject=account.identity.subject
+        ) as transaction:
+            now = self._clock.now()
+            transaction.recovery_uncertain(
+                account.identity.subject, owner, now, now + timedelta(seconds=30)
+            )
