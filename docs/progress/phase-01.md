@@ -43,7 +43,7 @@ La syntaxe du workflow Actions a été vérifiée avec actionlint **1.7.12**, sa
 
 ## Portée restante
 
-Le volet technique P01 est vérifié, publié et fusionné. Les neuf Issues restent ouvertes pour le suivi formel des critères. La protection de `main` avait été refusée avec HTTP 403 lorsque le dépôt était privé ; sa visibilité a depuis été observée publique, sans modification par l'agent. Le Project optionnel exige un scope d'écriture absent. La licence reste à choisir. Les détails techniques ci-dessus constituent les preuves historiques P01 ; le schéma et Compose évoluent dans P02.
+Le volet technique P01 est vérifié, publié et fusionné. Le 2026-11-11, les Issues #1, #2 et #4–#9 ont été clôturées avec leurs preuves et la CI du commit de fusion. T003/#3 reste ouverte : la licence n'est pas choisie ; le milestone reste ouvert. La protection de `main` avait été refusée avec HTTP 403 lorsque le dépôt était privé ; sa visibilité a depuis été observée publique, sans modification par l'agent. Le Project optionnel exige un scope d'écriture absent. Les détails techniques ci-dessus constituent les preuves historiques P01 ; le schéma et Compose évoluent dans P02.
 
 Activité réelle P01 : **1 dépôt créé initialement privé, 9 jalons, 9 Issues, 1 PR publiée puis fusionnée**. Les fondations et le commit de suivi documentaire sont intégrés à `main` par `6af120f`. Les contributions visibles sur le profil GitHub ne sont pas déduites de ces nombres.
 

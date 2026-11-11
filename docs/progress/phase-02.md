@@ -80,10 +80,27 @@ verrouillée, `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm 
 `npm run build`, `npm run generate:api`, `npm audit --audit-level=moderate`,
 `npx playwright install chromium --only-shell`, `npm run test:e2e`.
 
-Activité distante de ce lot : **0 Issue créée, 0 push, 0 PR publiée, 0 fusion**.
-La branche locale et la description de PR sont préparées pour revue. La CI
-applicative distante reste à exécuter après autorisation de publication ; cette
-porte de livraison P02 n'est pas déclarée franchie. P03 attend un nouvel accord.
+Le push a été autorisé (« push ca »), puis la livraison GitHub poursuivie sur
+« continue […] le max de contributions » le 2026-11-11. **Dix Issues #11–#20
+et la [PR #21](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/21)
+sont publiées ; aucune fusion P02 n'est réalisée.** La [CI du push sur 9e53603](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42853034821)
+a réussi sur les quatre jobs, y compris PostgreSQL, perte Redis et navigateur.
+
+La revue du 2026-11-11 a reproduit et corrigé deux régressions :
+
+- `6a9ecec` : `PMS_DATABASE_NAME` hérité pouvait cibler une autre base locale et
+  un secret administrateur hérité était transmis au processus enfant. Le wrapper
+  reconstruit désormais son espace `PMS_*` depuis le fichier local validé et
+  fixe la base métier. **17 tests d'outillage passent** après correction.
+- `ba470fa` : une exception après le début d'une réponse envoyait deux blocs
+  d'en-têtes. Le flux est désormais interrompu sans nouvelle réponse ni exception
+  sensible exposée au serveur ; un compteur et un résultat de log le signalent.
+  **10 tests unitaires/contrat backend passent**, avec mypy strict et Ruff.
+
+La CI du nouveau HEAD doit encore être vérifiée sur la PR avant sa livraison.
+Les preuves de la recette initiale ci-dessus restent attachées à leur version.
+Le [bilan du 11 novembre](2026-11-11.md) distingue activité et contributions visibles.
+P03 attend un nouvel accord.
 La façade Auth, les memberships, le RBAC, les tables métier, les paiements et le
 seed métier restent hors du lot. Le warning de dépréciation du transport httpx
 du TestClient Starlette est non bloquant et reste à migrer vers httpx2.

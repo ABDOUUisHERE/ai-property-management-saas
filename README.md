@@ -59,8 +59,8 @@ Validation locale P02 : **16 tests d'outillage, 15 tests backend, 9 tests fronte
 
 Dans `backend/` : `uv run mypy` et `uv run pytest -m 'not integration'`. Dans `frontend/` : `npm ci`, `npm run lint`, `npm run format:check`, `npm run check:api`, `npm run typecheck`, `npm test`, `npm run build`, puis `npx playwright install chromium --only-shell` et `npm run test:e2e` avec Compose lancé.
 
-La CI P02 est configurée mais n'a pas encore été exécutée sur GitHub : sa publication reste à autoriser. Les parcours E2E métier auth/réservation/opérations, le seed métier et Stripe seront ajoutés avec leurs fonctionnalités. La protection multi-tenant P02 concerne les primitives outbox ; elle ne prouve pas encore l'isolation des futures tables métier.
+La [CI P02 sur 9e53603](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/42853034821) a réussi sur les quatre jobs. La [PR #21](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/21) suit la livraison et les corrections de revue du 11 novembre : **17 tests d'outillage et 10 tests unitaires/contrat backend** passent localement après correction. Les checks du HEAD doivent être verts avant fusion. Les parcours E2E métier auth/réservation/opérations, le seed métier et Stripe seront ajoutés avec leurs fonctionnalités. La protection multi-tenant P02 concerne les primitives outbox ; elle ne prouve pas encore l'isolation des futures tables métier.
 
 ## Prochaine étape
 
-Publier le lot P02 et sa PR après accord, vérifier sa CI distante, puis obtenir l'accord avant P03. Les neuf Issues P01 restent ouvertes pour leur suivi formel. La licence reste à choisir. La configuration distante actuelle est conservée ; aucune dépense AWS n'est engagée.
+Terminer la revue/CI de la PR #21, puis obtenir l'accord de fusion et celui de P03. Huit Issues P01 sont clôturées avec preuves ; T003/#3 reste ouverte pour le choix de licence. La configuration distante actuelle est conservée ; aucune dépense AWS n'est engagée.

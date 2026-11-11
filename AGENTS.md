@@ -6,7 +6,7 @@ Le cadrage, le backlog et l'architecture ont été validés le 2026-11-10 (« je
 
 L'utilisateur a autorisé la publication GitHub le 2026-11-10 (« oui ») : dépôt privé `ABDOUUisHERE/ai-property-management-saas`, push de `main` et `feat/t001-local-foundations`, neuf jalons, Issues P01 et PR de revue du lot validé. Poursuivre les mises à jour nécessaires à ce lot sans redemander cette autorisation. Les liens réels figurent dans [le suivi P01](docs/progress/phase-01.md).
 
-La fusion de P01 est autorisée et réalisée. La publication distante du nouveau lot P02, sa fusion, une nouvelle phase ou une dépense AWS demandent une autorisation couvrant l'action ; conserver les accords déjà obtenus. La protection obligatoire de `main` avait été refusée pour le dépôt privé. Sa visibilité a depuis été observée publique ; appliquer le workflow de PR/revue et préserver la configuration distante actuelle.
+La fusion de P01 est réalisée. Le push P02 a été autorisé (« push ca ») et effectué sur `9e53603`. Le 2026-11-11, « continue […] le max de contributions » couvre la livraison GitHub P02 : Issues, PR #21, corrections vérifiées et leurs pushes. La fusion de P02, P03 et toute dépense AWS restent soumises à un accord couvrant l'action. Conserver les accords déjà obtenus. La protection de `main` avait été refusée lorsque le dépôt était privé ; sa visibilité a depuis été observée publique. Préserver la configuration distante actuelle.
 
 ## Avant un changement
 
