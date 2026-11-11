@@ -138,6 +138,18 @@ def test_real_email_login_refresh_and_provider_logout(engine, database):
                 signed_headers["X-CSRF-Token"] = token_response.json()["csrf_token"]
                 renewed = browser.post("/api/v1/auth/refresh", headers=signed_headers)
                 assert renewed.status_code == 200
+                organization = browser.post(
+                    "/api/v1/organizations",
+                    json={"name": "Demo Atlas", "request_id": str(uuid4())},
+                    headers=signed_headers,
+                )
+                assert organization.status_code == 201
+                assert organization.json()["role"] == "owner"
+                organization_id = organization.json()["id"]
+                selected = browser.get(
+                    "/api/v1/organizations/current", headers={"X-Organization-ID": organization_id}
+                )
+                assert selected.status_code == 200 and selected.json() == organization.json()
                 logged_out = browser.post("/api/v1/auth/logout", headers=signed_headers)
                 assert logged_out.status_code == 204
                 rejected = browser.get("/api/v1/me", headers={"Cookie": f"pms_session={opaque}"})
@@ -181,6 +193,14 @@ def test_real_email_login_refresh_and_provider_logout(engine, database):
                 for session in (old, other_old):
                     with pytest.raises(SessionExpired):
                         service.resolve(session.opaque)
+                    denied = browser.get(
+                        "/api/v1/organizations/current",
+                        headers={
+                            "Cookie": f"pms_session={session.opaque.get_secret_value()}",
+                            "X-Organization-ID": organization_id,
+                        },
+                    )
+                    assert denied.status_code == 401
                 with pytest.raises(AuthenticationRejected):
                     provider.login(email, password)
                 renewed_local = service.login(email, new_password)

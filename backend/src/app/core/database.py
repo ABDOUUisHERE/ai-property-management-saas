@@ -8,7 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from app.core.config import Settings
 from app.core.context import TenantContext
 
-SCHEMA_REVISION = "0003_account_recovery"
+SCHEMA_REVISION = "0004_organizations"
 
 
 class Base(DeclarativeBase):

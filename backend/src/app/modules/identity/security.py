@@ -143,19 +143,24 @@ class AuthGuard:
             return
         request = Request(scope)
         auth_path = request.url.path.startswith("/api/v1/auth/") or request.url.path == "/api/v1/me"
+        private_json_path = (
+            auth_path
+            or request.url.path == "/api/v1/organizations"
+            or request.url.path.startswith("/api/v1/organizations/")
+        )
         received = 0
 
         async def bounded_receive() -> Message:
             nonlocal received
             message = await receive()
-            if auth_path and message["type"] == "http.request":
+            if private_json_path and message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > 8192:
                     raise HTTPException(413)
             return message
 
         async def safe_send(message: Message) -> None:
-            if auth_path and message["type"] == "http.response.start":
+            if private_json_path and message["type"] == "http.response.start":
                 headers = [
                     (key, value)
                     for key, value in message.get("headers", [])

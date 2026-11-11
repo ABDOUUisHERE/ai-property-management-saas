@@ -17,7 +17,9 @@ la façade HTTP protégée de T020–T022. Elle est fusionnée sur `35a5f1d`, le
 checks verts sur `8548949` ([CI PR](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/43023313226)).
 Les Issues #22–#24 sont fermées. Le [plan de l'incrément](p03-session-plan.md) et
 [les contrats HTTP](../api/README.md) détaillent comportement et limites.
-T023–T034 restent à réaliser ; aucune isolation d'organisation n'est encore prouvée.
+La suite T023/T024 est publiée dans la [PR #38](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/38).
+Les migrations et contrôles d'organisation ciblent d'abord création/liste/sélection ;
+la recette complète des futurs modules multi-tenant reste à livrer par T027–T034.
 
 ## Premier incrément publié
 
@@ -52,8 +54,8 @@ Leurs critères restent ouverts jusqu'à preuve et livraison complète.
 | T020 Adapter et profil | [#22](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/22) | Livrée par #37 |
 | T021 Sessions | [#23](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/23) | Livrée par #37 |
 | T022 Transport Auth | [#24](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/24) | Livrée par #37 |
-| T023 Récupération | [#25](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/25) | En cours : [plan](p03-recovery-plan.md) |
-| T024 Organisations | [#26](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/26) | À faire |
+| T023 Récupération | [#25](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/25) | En recette #38 : [plan](p03-recovery-plan.md) |
+| T024 Organisations | [#26](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/26) | En recette #38 : [plan](p03-organization-plan.md) |
 | T025 Invitations | [#27](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/27) | À faire |
 | T026 Membres | [#28](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/28) | À faire |
 | T027 RLS | [#29](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/29) | À faire |
@@ -169,6 +171,45 @@ Le downgrade `0002_identity` supprime profils et sessions : testé uniquement da
 la base jetable, jamais sur la base de développement. Voir le runbook pour la
 restauration et la rotation des clés. Le warning TestClient/httpx existant demeure.
 
-Prochain lot autorisé dans P03 : T023 récupération de compte, puis organisations,
-invitations, RBAC et écrans Auth. La fusion de ce lot attend un accord couvrant
-l'action ; P04 attend un nouvel accord.
+## Deuxième lot — Récupération et bootstrap d'organisation
+
+La [PR #38](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/38)
+livre T023/T024. `b63c0f3` ajoute la récupération, `93862d4` renforce les réponses
+tardives : une ancienne tentative ne peut libérer le verrou d'une nouvelle et
+son résultat observé invalide aussi les sessions créées entre-temps.
+
+La migration additive `0003_account_recovery` pose la barrière par sujet sans
+lecture globale des ciphertexts. Le jeton d'email est vérifié par Supabase en
+type recovery, expire après une heure et est à usage unique. La confirmation
+exige Origin/CSRF, change le mot de passe hors transaction, ferme les cookies
+et impose un nouveau login. Les réponses incertaines gardent le sujet bloqué
+jusqu'à une nouvelle récupération. Le template place le jeton dans un fragment.
+
+`0004_organizations` ajoute organisation/membership, création atomique avec
+premier owner et idempotence par acteur/UUID de requête. Les politiques RLS
+forcées, le XID de création et une FK différée bornent le bootstrap. Le rôle
+runtime ne peut modifier/supprimer ces lignes. La liste et le sélecteur relisent
+l'appartenance active ; aucun tenant actif global n'est enregistré. Cela ne
+constitue pas encore les invitations, la gestion des rôles ou la recette de
+toutes les données métier T025–T034.
+
+Recette locale après reprise Docker : `scripts/dev.py up` termine avec dix
+processus healthy et migration réussie. `scripts/application.py test
+--broker-recovery` : **200 tests réussis**, aucune exclusion, dont le parcours
+Auth/Mailpit, reset connu/inconnu, jeton réutilisé et expiration fournisseur
+réelle (horodatage du seul compte de fixture avancé dans la base Auth locale),
+révocation des sessions sur l'API d'organisation, rollback et concurrence SQL.
+Un cas supplémentaire de sélection indépendante entre deux onglets complète
+la recette ciblée. Les 128 tests sans infrastructure et 19 tests d'outillage,
+neuf tests frontend, trois parcours navigateur, Ruff, mypy strict (33 fichiers),
+contrats générés et build passent. Les smokes PostgreSQL/Auth/Redis/S3 et
+UI/proxy/worker passent. Le downgrade initial a échoué sur une dépendance RLS,
+corrigée avant la réussite upgrade/réexécution/downgrade/upgrade sur base jetable.
+
+La CI du HEAD final est suivie sur la PR. L'auto-revue ne remplace pas une revue
+humaine indépendante. Les limites de restauration figurent dans le runbook :
+retirer la barrière peut réactiver des sessions ; supprimer les tables
+d'organisation détruit les données. Privilégier un correctif en avant.
+
+Prochain lot P03 : invitations, cycle des membres, audit et RBAC, puis écrans.
+La fusion #38 attend un accord couvrant cette action ; P04 attend un nouvel accord.

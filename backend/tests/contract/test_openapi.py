@@ -25,6 +25,8 @@ def test_openapi_matches_reviewed_snapshot(settings: Settings) -> None:
         "/api/v1/auth/logout",
         "/api/v1/auth/recovery/request",
         "/api/v1/auth/recovery/confirm",
+        "/api/v1/organizations",
+        "/api/v1/organizations/current",
         "/api/v1/me",
     }
     assert set(schema["components"]["schemas"]["SessionResponse"]["properties"]) == {

@@ -129,6 +129,22 @@ valides : en cas de retour arrière, restaurer une sauvegarde isolée et invalid
 toutes les sessions avant remise en service d'un ancien binaire. Privilégier
 un correctif en avant. Les tests de downgrade utilisent seulement une base jetable.
 
+## Organisations
+
+La migration `0004_organizations` crée deux tables sous RLS forcée. Le bootstrap
+utilise `app.actor_id` et un identifiant d'organisation généré côté serveur,
+avec `app.bootstrap_organization` transactionnel. Le `bootstrap_xid` PostgreSQL
+immuable lie la première membership à la transaction de création, sans fonction
+SECURITY DEFINER ni rôle BYPASSRLS. La liste initiale utilise seulement les
+memberships de l'acteur avant sélection d'un tenant.
+
+Le downgrade supprime les organisations/memberships ; il est réservé aux bases
+jetables de recette. En cas de restauration avec données, restaurer Auth et la
+base métier de façon cohérente, conserver le lien sujet/profil et forcer les
+reconnexions. Privilégier un correctif en avant. Les opérations de transfert,
+retrait et changement de rôle ne sont pas encore exposées ; aucune commande
+SQL administrative manuelle ne remplace leurs futurs invariants T026.
+
 ## Outbox
 
 La transaction autorisée insère `outbox_events` et ses `outbox_deliveries`.
