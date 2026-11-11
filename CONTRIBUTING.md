@@ -1,6 +1,6 @@
 # Contribuer
 
-Le cadrage et le backlog ont été validés le 2026-11-10. La phase P01 prépare uniquement le dépôt et l'environnement ; les fonctionnalités métier commencent après validation des fondations correspondantes.
+Le cadrage et le backlog ont été validés le 2026-11-10. P01 est fusionnée ; P02 livre l'architecture exécutable. Les fonctionnalités métier commencent après validation des fondations correspondantes.
 
 ## Préparer un changement
 
@@ -10,7 +10,7 @@ Créer une branche `feat/`, `fix/`, `test/`, `refactor/` ou `docs/` par lot coh�
 
 ## Environnement et validation
 
-Suivre [le démarrage local](docs/runbooks/local-development.md). Les dépendances Python d'outillage sont verrouillées par `uv.lock`. Les contrôles de la phase courante sont documentés dans ce runbook ; rapporter les commandes réellement exécutées et leurs résultats. Les tests backend/frontend seront ajoutés avec leurs composants, sans déclarer de suite fictive.
+Suivre [le démarrage local](docs/runbooks/local-development.md), puis [le runbook applicatif](docs/runbooks/application-development.md). `uv.lock` verrouille l'outillage, `backend/uv.lock` le backend et `frontend/package-lock.json` le frontend. Exécuter les contrôles correspondant aux fichiers modifiés et rapporter leurs résultats réels. Un changement d'interface passe aussi les tests navigateur et les audits d'accessibilité des écrans concernés.
 
 Les secrets sont générés localement dans des fichiers ignorés. Ne pas joindre `.env`, clés privées, tokens, données personnelles ou sorties Docker contenant des secrets à une Issue/PR. Utiliser uniquement des données fictives. Vérifier le diff et les fichiers suivis avant de committer.
 

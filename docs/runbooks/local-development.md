@@ -1,6 +1,9 @@
-# Développement local — phase P01
+# Développement local — dépendances P01 et bootstrap P02
 
-Ce runbook prépare les dépendances, pas encore l'application FastAPI/React. Le root `pyproject.toml` et `uv.lock` concernent seulement l'outillage d'infrastructure ; les projets applicatifs et leurs contrôles seront ajoutés en P02.
+Le root `pyproject.toml` et `uv.lock` concernent l'outillage d'infrastructure.
+Le bootstrap démarre désormais aussi API, interface, worker, dispatcher et
+migration. Leur détail figure dans [le runbook applicatif](application-development.md).
+Les sections ci-dessous décrivent les dépendances P01 et leurs contrôles.
 
 ## Prérequis
 
@@ -66,8 +69,18 @@ uv run python scripts/dev.py up
 
 L'arrêt conserve les volumes. Pour éprouver le redémarrage sans modifier les autres stacks : `docker compose restart`, attendre les sondes avec `uv run python scripts/dev.py up`, puis relancer `smoke`. `docker compose ps --all` donne les états sans afficher les variables secrètes. Éviter `docker compose config` sans `--quiet` sur `.env` réel et les dumps d'inspection d'environnement.
 
-Pour un environnement de validation distinct, les commandes acceptent `--env-file .local/validation.env`. Initialiser ce fichier avec `uv run python scripts/dev.py init --env-file .local/validation.env`, puis choisir dans ce fichier un autre `COMPOSE_PROJECT_NAME`, cinq ports distincts et l'URL Auth correspondante avant le premier démarrage. Le script fixe explicitement le fichier Compose, le fichier de variables et le nom du projet pour éviter de cibler une autre stack par une variable globale du shell.
+Pour valider les seules dépendances dans une stack distincte, initialiser avec
+`uv run python scripts/dev.py init --env-file .local/validation.env`, puis choisir
+un autre `COMPOSE_PROJECT_NAME`, cinq ports distincts et l'URL Auth correspondante.
+Lancer uniquement les six dépendances avec
+`docker compose --env-file .local/validation.env up -d --wait postgres auth-db auth redis mailpit storage`,
+puis `uv run python scripts/dev.py smoke --env-file .local/validation.env`.
+Le démarrage complet P02 utilise aussi les ports API/UI fixes : ne pas lancer
+deux applications simultanément sur ces mêmes ports.
 
 Si un service est unhealthy, consulter localement ses logs en gardant leurs données sensibles hors des échanges. Vérifier Docker actif, ports disponibles, espace disque, ressources et cohérence des credentials avec les volumes. Les init PostgreSQL ne sont exécutés que sur une base neuve : changer les passwords dans `.env` n'effectue pas une rotation SQL.
 
-Le script ne contient aucune suppression de volumes ni option de régénération forcée des clés. Une remise à zéro exige d'identifier le projet et ses volumes, confirmer que les données locales sont jetables et préparer une procédure ciblée ; ne pas utiliser un nettoyage Docker global. Une migration applicative/seed métier viendra en P02/P03 et ne doit pas être revendiquée maintenant.
+Le script ne supprime aucun volume et ne régénère pas les clés existantes.
+Une remise à zéro exige d'identifier le projet et ses volumes et de préparer
+une procédure ciblée. Les migrations des primitives outbox existent en P02 ;
+le seed et les migrations métier arrivent avec les fonctionnalités suivantes.

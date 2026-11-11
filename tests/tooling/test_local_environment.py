@@ -9,6 +9,7 @@ from pathlib import Path
 import jwt
 import pytest
 
+from scripts.application import application_environment
 from scripts.dev import (
     ROOT,
     SECRET_KEYS,
@@ -34,6 +35,21 @@ def test_second_init_preserves_all_provisioned_credentials(initialized: Path) ->
     assert path.read_bytes() == before
 
 
+def test_application_target_and_credentials_ignore_inherited_shell_values(
+    initialized: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PMS_DATABASE_NAME", "another_existing_database")
+    monkeypatch.setenv("PMS_PROCESS", "dispatcher")
+    monkeypatch.setenv("PMS_TEST_ADMIN_PASSWORD", "x" * 48)
+    monkeypatch.setenv("PMS_DATABASE_HOST", "unrelated.example.test")
+    environment = application_environment(initialized / ".env")
+    assert environment["PMS_DATABASE_NAME"] == "property_management"
+    assert environment["PMS_DATABASE_HOST"] == "127.0.0.1"
+    assert environment["PMS_PROCESS"] == "api"
+    assert "PMS_TEST_ADMIN_PASSWORD" not in environment
+
+
 def test_generated_service_credentials_are_distinct_and_not_template_values(
     initialized: Path,
 ) -> None:
@@ -41,6 +57,24 @@ def test_generated_service_credentials_are_distinct_and_not_template_values(
     validate_env(values)
     assert len({values[key] for key in SECRET_KEYS}) == len(SECRET_KEYS)
     assert "__GENERATE__" not in values.values()
+
+
+def test_p01_environment_upgrade_adds_only_dispatcher_credential(initialized: Path) -> None:
+    path = initialized / ".env"
+    original = read_env(path)
+    original.pop("DATABASE_DISPATCH_PASSWORD")
+    path.write_text(
+        "\n".join(f"{key}='{value}'" for key, value in original.items()), encoding="utf-8"
+    )
+    before = path.read_bytes()
+    assert not init_environment(initialized)
+    after = read_env(path)
+    assert {key: after[key] for key in original} == original
+    assert path.read_bytes().startswith(before)
+    assert len(after["DATABASE_DISPATCH_PASSWORD"]) == 48
+    upgraded = path.read_bytes()
+    assert not init_environment(initialized)
+    assert path.read_bytes() == upgraded
 
 
 @pytest.mark.parametrize(

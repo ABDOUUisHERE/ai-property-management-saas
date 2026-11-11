@@ -26,11 +26,13 @@ from botocore.exceptions import ClientError
 from cryptography.hazmat.primitives.asymmetric import ec
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 PORT_KEYS = ("DATABASE_PORT", "AUTH_PORT", "REDIS_PORT", "MAILPIT_HTTP_PORT", "S3_PORT")
 SECRET_KEYS = (
     "DATABASE_ADMIN_PASSWORD",
     "DATABASE_MIGRATION_PASSWORD",
     "DATABASE_RUNTIME_PASSWORD",
+    "DATABASE_DISPATCH_PASSWORD",
     "AUTH_DATABASE_ADMIN_PASSWORD",
     "AUTH_DATABASE_PASSWORD",
     "AUTH_JWT_SECRET",
@@ -116,7 +118,25 @@ def validate_env(values: dict[str, str]) -> None:
 def init_environment(root: Path = ROOT, env_file: Path | None = None) -> bool:
     path = env_file or root / ".env"
     if path.exists():
-        validate_env(read_env(path))
+        values = read_env(path)
+        # P02 adds a separate capability for routing durable jobs. Preserve every
+        # existing credential; append only the new key after validating the result.
+        if "DATABASE_DISPATCH_PASSWORD" not in values:
+            lock = path.with_name(path.name + ".upgrade.lock")
+            descriptor = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.close(descriptor)
+            try:
+                values = read_env(path)
+                if "DATABASE_DISPATCH_PASSWORD" not in values:
+                    values["DATABASE_DISPATCH_PASSWORD"] = secrets.token_hex(24)
+                    validate_env(values)
+                    with path.open("a", encoding="utf-8", newline="\n") as stream:
+                        stream.write(
+                            f"\nDATABASE_DISPATCH_PASSWORD='{values['DATABASE_DISPATCH_PASSWORD']}'\n"
+                        )
+            finally:
+                lock.unlink()
+        validate_env(values)
         return False
     values = read_env(root / ".env.example")
     values.update({key: secrets.token_hex(24) for key in SECRET_KEYS})
@@ -390,6 +410,12 @@ def main() -> None:
         return
     values = doctor(args.env_file)
     if args.command == "up":
+        # Existing P01 volumes need the routing-only role; new volumes receive it
+        # from init. Preserve the databases and all existing credentials.
+        compose("up", "--wait", "--wait-timeout", "60", "postgres", env_file=args.env_file)
+        from scripts.application import provision_dispatcher
+
+        provision_dispatcher(args.env_file)
         compose(
             "up",
             "--build",
