@@ -81,6 +81,9 @@ class SessionService:
         self._refresh_margin = timedelta(seconds=30)
 
     def login(self, email: str, password: SecretStr) -> NewSession:
+        # Capture before the network: a login begun before a recovery barrier
+        # cannot create a valid local session after that recovery finishes.
+        started_at = self._clock.now()
         account = self._authority.login(email, password)
         now, opaque = self._clock.now(), SecretStr(secrets.token_urlsafe(32))
         capability = session_hash(opaque)
@@ -92,6 +95,8 @@ class SessionService:
                 session_hash=capability, verified_subject=account.identity.subject
             ) as transaction:
                 profile = transaction.upsert_profile(account.identity.subject, account.email, now)
+                if transaction.profile(profile.id, session_started_at=started_at) is None:
+                    raise SessionExpired()
                 transaction.insert_session(
                     StoredSession(
                         capability,
@@ -100,18 +105,18 @@ class SessionService:
                         account.identity.provider_session_id,
                         encrypted,
                         account.identity.expires_at,
-                        now,
-                        now + self._lifetime,
+                        started_at,
+                        started_at + self._lifetime,
                         0,
                         None,
                         None,
                         None,
                     )
                 )
-        except SQLAlchemyError:
+        except (SQLAlchemyError, SessionExpired):
             self._logout_provider(account.tokens.access_token)
             raise
-        return NewSession(profile, now + self._lifetime, opaque)
+        return NewSession(profile, started_at + self._lifetime, opaque)
 
     def resolve(self, opaque: SecretStr, *, force_refresh: bool = False) -> Profile:
         capability = session_hash(opaque)
@@ -212,8 +217,9 @@ class SessionService:
                         record, owner, encrypted, account.identity.expires_at
                     )
                     if completed:
-                        profile = transaction.upsert_profile(
-                            record.auth_subject, account.email, now
+                        transaction.upsert_profile(record.auth_subject, account.email, now)
+                        profile = transaction.profile(
+                            record.user_id, session_started_at=record.created_at
                         )
         if not completed or profile is None:
             self._logout_provider(account.tokens.access_token)
@@ -233,7 +239,9 @@ class SessionService:
             elif current.version != record.version or current.refresh_owner is not None:
                 busy = True
             else:
-                profile = transaction.profile(current.user_id)
+                profile = transaction.profile(
+                    current.user_id, session_started_at=current.created_at
+                )
         if busy:
             raise SessionBusy()
         if invalid or profile is None:

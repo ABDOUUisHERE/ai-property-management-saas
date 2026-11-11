@@ -11,10 +11,11 @@ attend un nouvel accord.
 ## État actuel de la livraison
 
 La [PR #37](https://github.com/ABDOUUisHERE/ai-property-management-saas/pull/37)
-contient maintenant les profils persistants, les sessions opaques révocables et
-la façade HTTP protégée de T020–T022. Ces trois tâches sont implémentées et
-vérifiées localement, en attente de la CI du nouveau HEAD et de livraison revue.
-La PR n'est pas fusionnée. Le [plan de l'incrément](p03-session-plan.md) et
+livre les profils persistants, les sessions opaques révocables et
+la façade HTTP protégée de T020–T022. Elle est fusionnée sur `35a5f1d`, le
+2026-11-11 à 16:09 UTC, après « Oui, fusionne puis continue P03 » et huit
+checks verts sur `8548949` ([CI PR](https://github.com/ABDOUUisHERE/ai-property-management-saas/actions/runs/43023313226)).
+Les Issues #22–#24 sont fermées. Le [plan de l'incrément](p03-session-plan.md) et
 [les contrats HTTP](../api/README.md) détaillent comportement et limites.
 T023–T034 restent à réaliser ; aucune isolation d'organisation n'est encore prouvée.
 
@@ -48,10 +49,10 @@ Leurs critères restent ouverts jusqu'à preuve et livraison complète.
 
 | Tâche | Issue | État de cet incrément |
 | --- | --- | --- |
-| T020 Adapter et profil | [#22](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/22) | Implémentée et testée ; livraison en revue |
-| T021 Sessions | [#23](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/23) | Implémentée et testée ; livraison en revue |
-| T022 Transport Auth | [#24](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/24) | Implémentée et testée ; livraison en revue |
-| T023 Récupération | [#25](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/25) | À faire |
+| T020 Adapter et profil | [#22](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/22) | Livrée par #37 |
+| T021 Sessions | [#23](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/23) | Livrée par #37 |
+| T022 Transport Auth | [#24](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/24) | Livrée par #37 |
+| T023 Récupération | [#25](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/25) | En cours : [plan](p03-recovery-plan.md) |
 | T024 Organisations | [#26](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/26) | À faire |
 | T025 Invitations | [#27](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/27) | À faire |
 | T026 Membres | [#28](https://github.com/ABDOUUisHERE/ai-property-management-saas/issues/28) | À faire |

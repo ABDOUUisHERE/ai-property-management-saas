@@ -5,13 +5,16 @@ import html
 import os
 import re
 import secrets
+import shutil
+import subprocess
 import time
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from psycopg import sql
 from pydantic import SecretStr
 from sqlalchemy.orm import sessionmaker
 
@@ -139,6 +142,69 @@ def test_real_email_login_refresh_and_provider_logout(engine, database):
                 assert logged_out.status_code == 204
                 rejected = browser.get("/api/v1/me", headers={"Cookie": f"pms_session={opaque}"})
                 assert rejected.status_code == 401
+            # Request/confirm recovery through the real HTTP facade and Mailpit.
+            # Keep two old local sessions to prove immediate revocation even
+            # though their provider access JWTs have not reached expiry.
+            old = service.login(email, password)
+            other_old = service.login(email, password)
+            new_password = SecretStr(secrets.token_urlsafe(32))
+            with TestClient(create_app(database), base_url=database.browser_origin) as browser:
+
+                def signed():
+                    csrf = browser.get("/api/v1/auth/csrf")
+                    assert csrf.status_code == 200
+                    return {
+                        "Origin": database.browser_origin,
+                        "X-CSRF-Token": csrf.json()["csrf_token"],
+                    }
+
+                def request_reset(address):
+                    response = browser.post(
+                        "/api/v1/auth/recovery/request", json={"email": address}, headers=signed()
+                    )
+                    assert response.status_code == 202
+                    assert response.json() == {"status": "accepted"}
+
+                request_reset(f"unknown-{uuid4().hex}@example.test")
+                request_reset(email)
+                token = recovery_token(client, mail_url, email, database.browser_origin)
+                body = {"token_hash": token, "password": new_password.get_secret_value()}
+                reset = browser.post("/api/v1/auth/recovery/confirm", json=body, headers=signed())
+                assert reset.status_code == 204
+                assert not browser.cookies.get("pms_session")
+                assert (
+                    browser.post(
+                        "/api/v1/auth/recovery/confirm", json=body, headers=signed()
+                    ).status_code
+                    == 401
+                )
+                for session in (old, other_old):
+                    with pytest.raises(SessionExpired):
+                        service.resolve(session.opaque)
+                with pytest.raises(AuthenticationRejected):
+                    provider.login(email, password)
+                renewed_local = service.login(email, new_password)
+                assert service.resolve(renewed_local.opaque) == old.profile
+                service.logout(renewed_local.opaque)
+                # Expire only this fixture's recovery timestamp in the local
+                # provider DB. No credentials or email payload enter shell code.
+                # This tests GoTrue's real expiry check without waiting an hour.
+                time.sleep(1.1)  # Provider's configured email resend interval.
+                request_reset(email)
+                expired = recovery_token(
+                    client, mail_url, email, database.browser_origin, previous=token
+                )
+                expire_fixture_recovery(account.identity.subject)
+                assert (
+                    browser.post(
+                        "/api/v1/auth/recovery/confirm",
+                        json={"token_hash": expired, "password": password.get_secret_value()},
+                        headers=signed(),
+                    ).status_code
+                    == 401
+                )
+                valid_after_expired = service.login(email, new_password)
+                service.logout(valid_after_expired.opaque)
         finally:
             provider.close()
             # The public adapter deliberately hides signup account identifiers.
@@ -155,3 +221,64 @@ def test_real_email_login_refresh_and_provider_logout(engine, database):
                     identifier = UUID(user["id"])
                     deleted = client.delete(f"{auth_url}/admin/users/{identifier}", headers=headers)
                     assert deleted.status_code in {200, 204}
+
+
+def recovery_token(client, mail_url, email, origin, *, previous=None):
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        response = client.get(f"{mail_url}/api/v1/search", params={"query": f"to:{email}"})
+        assert response.status_code == 200
+        for message in response.json().get("messages", []):
+            detail = client.get(f"{mail_url}/api/v1/message/{message['ID']}")
+            assert detail.status_code == 200
+            body = detail.json()
+            text = html.unescape(body.get("Text", "") + body.get("HTML", ""))
+            for link in re.findall(r"https?://[^\s<>\"']+", text):
+                parsed = urlsplit(link)
+                if f"{parsed.scheme}://{parsed.netloc}" == origin and parsed.path == "/auth/reset":
+                    assert not parsed.query  # No secret in server/proxy request logs.
+                    token = parse_qs(parsed.fragment).get("token_hash", [""])[0]
+                    assert re.fullmatch(r"[a-f0-9]{56}", token)
+                    if token != previous:
+                        return token
+        time.sleep(0.25)
+    pytest.fail("Recovery email with the configured safe fragment link not received")
+
+
+def expire_fixture_recovery(subject):
+    assert isinstance(subject, UUID)
+    project = os.environ["PMS_COMPOSE_PROJECT"]
+    assert re.fullmatch(r"[a-z0-9][a-z0-9_-]*", project)
+    docker = shutil.which("docker")
+    assert docker
+    query = (
+        sql.SQL(
+            "UPDATE auth.users SET recovery_sent_at=now()-interval '2 hours' "
+            "WHERE id={} AND email LIKE 'p03-%@example.test' RETURNING id;"
+        )
+        .format(sql.Literal(subject))
+        .as_string()
+    )
+    result = subprocess.run(  # noqa: S603 - fixed command, validated project/UUID, no shell
+        [
+            docker,
+            "exec",
+            f"{project}-auth-db-1",
+            "psql",
+            "-X",
+            "-U",
+            "auth_bootstrap",
+            "-d",
+            "auth",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-Atc",
+            query,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, "Fixture-only provider expiry update failed; output withheld"
+    assert result.stdout.splitlines() == [str(subject), "UPDATE 1"]

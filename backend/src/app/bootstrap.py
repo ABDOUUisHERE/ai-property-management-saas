@@ -19,6 +19,7 @@ from app.core.database import SCHEMA_REVISION, UnitOfWork, make_engine
 from app.core.errors import ApplicationError, install_error_handlers
 from app.core.telemetry import RequestTelemetry, Telemetry, configure_logging
 from app.modules.identity.provider import SupabaseProvider
+from app.modules.identity.recovery import RecoveryService
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.router import identity_router, install_identity_errors
 from app.modules.identity.security import AuthGuard, BrowserSecurity, RedisRateLimit
@@ -59,6 +60,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.auth_limiter = RedisRateLimit(redis, csrf_key)
         app.state.auth_sessions = SessionService(
             IdentityRepository(sessionmaker(engine)), provider, vault, app.state.clock
+        )
+        app.state.auth_recovery = RecoveryService(
+            IdentityRepository(sessionmaker(engine)),
+            provider,
+            app.state.clock,
+            browser_origin=security.origin,
         )
         try:
             yield

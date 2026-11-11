@@ -72,6 +72,22 @@ class Signup:
             raise self.failure()
 
 
+class Recovery:
+    def __init__(self):
+        self.requests, self.confirmations = [], []
+        self.failure = None
+
+    def request(self, email):
+        self.requests.append(email)
+        if self.failure:
+            raise self.failure()
+
+    def confirm(self, token_hash, password):
+        self.confirmations.append((token_hash, password))
+        if self.failure:
+            raise self.failure()
+
+
 @pytest.fixture
 def browser(settings):
     app = create_app(settings)
@@ -80,6 +96,7 @@ def browser(settings):
         app.state.auth_sessions = sessions
         app.state.auth_provider = signup
         app.state.auth_limiter = limiter
+        app.state.auth_recovery = Recovery()
         yield client, sessions, signup, limiter
 
 
@@ -89,7 +106,9 @@ def headers(client, origin=ORIGIN):
     return {"Origin": origin, "X-CSRF-Token": response.json()["csrf_token"]}
 
 
-@pytest.mark.parametrize("path", ["register", "login", "logout", "refresh"])
+@pytest.mark.parametrize(
+    "path", ["register", "login", "logout", "refresh", "recovery/request", "recovery/confirm"]
+)
 def test_auth_mutations_require_origin_and_csrf_before_any_effect(browser, path):
     client, sessions, signup, limiter = browser
     url = f"/api/v1/auth/{path}"
@@ -103,6 +122,77 @@ def test_auth_mutations_require_origin_and_csrf_before_any_effect(browser, path)
         assert response.headers["cache-control"] == "no-store"
     assert sessions.login_calls == signup.calls == sessions.refresh_calls == 0
     assert limiter.counts["auth-ip", "testclient"] == 0
+
+
+def test_recovery_request_is_generic_and_redirect_is_not_client_controlled(browser):
+    client, _, _, _ = browser
+    for email in ("known@example.test", "unknown@example.test"):
+        response = client.post(
+            "/api/v1/auth/recovery/request", json={"email": email}, headers=headers(client)
+        )
+        assert response.status_code == 202 and response.json() == {"status": "accepted"}
+        assert response.headers["cache-control"] == "no-store"
+    response = client.post(
+        "/api/v1/auth/recovery/request",
+        json={"email": CREDENTIALS["email"], "redirect_to": "https://foreign.example.test"},
+        headers=headers(client),
+    )
+    assert response.status_code == 422 and "foreign" not in response.text
+    assert len(client.app.state.auth_recovery.requests) == 2
+
+
+def test_recovery_confirm_clears_cookies_and_never_creates_a_login(browser):
+    client, sessions, _, _ = browser
+    client.post("/api/v1/auth/login", json=CREDENTIALS, headers=headers(client))
+    response = client.post(
+        "/api/v1/auth/recovery/confirm",
+        json={"token_hash": "a" * 56, "password": "new-fictional-password"},
+        headers=headers(client),
+    )
+    assert response.status_code == 204 and response.content == b""
+    assert not client.cookies.get("pms_session")
+    assert not client.cookies.get("pms_csrf_context")
+    assert sessions.login_calls == 1
+    token, password = client.app.state.auth_recovery.confirmations[0]
+    assert isinstance(token, SecretStr) and isinstance(password, SecretStr)
+
+
+@pytest.mark.parametrize(
+    "token,password,extra",
+    [
+        ("jwt-or-malformed", "new-fictional-password", {}),
+        ("A" * 56, "new-fictional-password", {}),
+        ("a" * 56, "short", {}),
+        ("a" * 56, "new-fictional-password", {"type": "signup"}),
+    ],
+)
+def test_recovery_refuses_malformed_weak_or_extra_input_without_reflection(
+    browser, token, password, extra
+):
+    client, _, _, _ = browser
+    response = client.post(
+        "/api/v1/auth/recovery/confirm",
+        json={"token_hash": token, "password": password, **extra},
+        headers=headers(client),
+    )
+    assert response.status_code == 422
+    assert token not in response.text and password not in response.text
+    assert not client.app.state.auth_recovery.confirmations
+
+
+@pytest.mark.parametrize(
+    "failure,status", [(AuthenticationRejected, 401), (ProviderUnavailable, 503)]
+)
+def test_recovery_rejection_and_outage_are_sanitized(browser, failure, status):
+    client, _, _, _ = browser
+    client.app.state.auth_recovery.failure = failure
+    response = client.post(
+        "/api/v1/auth/recovery/confirm",
+        json={"token_hash": "a" * 56, "password": "new-fictional-password"},
+        headers=headers(client),
+    )
+    assert response.status_code == status
+    assert "new-fictional" not in response.text and "a" * 56 not in response.text
 
 
 def test_cookie_login_me_refresh_and_logout_without_tokens_in_json(browser):

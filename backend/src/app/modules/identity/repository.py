@@ -103,11 +103,45 @@ class IdentityTransaction:
         )
         return StoredSession(**row) if row else None
 
-    def profile(self, user_id: UUID) -> Profile | None:
+    def profile(
+        self, user_id: UUID, *, session_started_at: datetime | None = None
+    ) -> Profile | None:
         row = self._session.execute(
-            text("SELECT id, email FROM users WHERE id=:user"), {"user": user_id}
+            text(
+                "SELECT id, email FROM users WHERE id=:user AND recovery_owner IS NULL "
+                "AND (cast(:started AS timestamptz) IS NULL OR sessions_valid_after IS NULL "
+                "OR sessions_valid_after < cast(:started AS timestamptz))"
+            ),
+            {"user": user_id, "started": session_started_at},
         ).one_or_none()
         return Profile(row.id, row.email) if row else None
+
+    def begin_recovery(self, subject: UUID, owner: UUID, now: datetime, deadline: datetime) -> bool:
+        return (
+            self._session.execute(
+                text(
+                    "UPDATE users SET sessions_valid_after=greatest(sessions_valid_after, :now), "
+                    "recovery_owner=:owner, recovery_deadline=:deadline "
+                    "WHERE auth_subject=:subject "
+                    "AND (recovery_owner IS NULL OR recovery_deadline <= :now) RETURNING id"
+                ),
+                {"subject": subject, "owner": owner, "now": now, "deadline": deadline},
+            ).scalar_one_or_none()
+            is not None
+        )
+
+    def finish_recovery(self, subject: UUID, owner: UUID, now: datetime) -> bool:
+        return (
+            self._session.execute(
+                text(
+                    "UPDATE users SET recovery_owner=NULL, recovery_deadline=NULL "
+                    "WHERE auth_subject=:subject AND recovery_owner=:owner "
+                    "AND recovery_deadline > :now RETURNING id"
+                ),
+                {"subject": subject, "owner": owner, "now": now},
+            ).scalar_one_or_none()
+            is not None
+        )
 
     def claim_refresh(self, record: StoredSession, owner: UUID, deadline: datetime) -> None:
         self._session.execute(

@@ -2,7 +2,8 @@
 
 Le [snapshot OpenAPI](openapi.json) décrit les sondes et la façade Auth :
 GET `/api/v1/auth/csrf`, POST `/api/v1/auth/register`, `/login`, `/logout`,
-`/refresh`, GET `/api/v1/me`, GET `/health/live` et `/health/ready`.
+`/refresh`, `/recovery/request`, `/recovery/confirm`, GET `/api/v1/me`,
+GET `/health/live` et `/health/ready`.
 Les chemins abrégés partagent `/api/v1/auth`. Le contrat est disponible sur
 `/api/v1/openapi.json` et sa documentation sur `/api/v1/docs`.
 
@@ -35,7 +36,36 @@ ces opérations par 503. Les en-têtes forwarded ne font pas autorité : derriè
 le proxy Compose, la limite source est partagée par ses utilisateurs. Une future
 configuration de proxies de confiance devra être explicite avant exploitation.
 
-Récupération de compte (T023), organisations, RBAC et écrans Auth restent à livrer.
+## Récupération de compte
+
+POST `/api/v1/auth/recovery/request` accepte seulement `email` et renvoie 202
+`{"status":"accepted"}` pour compte connu/inconnu et refus/throttling fournisseur.
+La limite locale est de cinq demandes par heure et email haché ; les protections
+Origin/CSRF et la limite par source restent obligatoires. L'URL de retour est
+fixée côté serveur à l'origine configurée + `/auth/reset` ; tout champ client
+`redirect_to` est refusé. Les pannes fournisseur renvoient 503 générique.
+
+Le template Supabase utilise un lien `/auth/reset#token_hash=…` : le fragment
+n'est pas envoyé aux serveurs HTTP. L'interface T031 devra le retirer de l'URL
+immédiatement et conserver le jeton uniquement en mémoire. Aucun GET ne consomme
+le jeton. POST `/api/v1/auth/recovery/confirm` reçoit `token_hash` (56 caractères
+hexadécimaux) et `password` (12–128 caractères) ; Supabase vérifie exclusivement
+le type `recovery`, l'expiration d'une heure et l'usage unique.
+
+Avant le changement distant, une transaction pose une barrière par sujet :
+sessions antérieures invalidées et login bloqué. Les logins commencés avant la
+barrière sont également refusés, même si leur réponse fournisseur arrive après.
+Un lease de 30 secondes possède un propriétaire unique, sans transaction SQL
+pendant le réseau. Timeout, refus de mot de passe ou réponse tardive laisse la
+barrière fermée : demander un nouvel email et reprendre après le lease. Cette
+option privilégie la révocation à la continuité de connexion après échec.
+
+Le succès renvoie 204, expire les cookies locaux et exige un nouveau login ;
+il ne connecte jamais automatiquement le navigateur. Jeton invalide/expiré/
+réutilisé : 401 ; récupération déjà en cours ou réponse tardive : 409.
+La révocation des anciennes sessions est logique et immédiate à la résolution ;
+leurs ciphertexts restent soumis à la durée et à la future purge des sessions.
+Les organisations, RBAC et écrans Auth restent à livrer.
 
 Les schémas transversaux versionnés fixent : erreurs Problem Details, pagination
 `page >= 1`, `1 <= limit <= 100`, monnaie entière en unités mineures avec code

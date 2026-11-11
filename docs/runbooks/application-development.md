@@ -108,6 +108,27 @@ sauvegarde dans une nouvelle base pour un retour arrière avec données, puis
 forcer la reconnexion des sessions de la base restaurée. La purge périodique
 des sessions expirées/révoquées reste à ajouter avant usage avec données réelles.
 
+## Récupération Auth
+
+Le Compose local configure `GOTRUE_MAILER_TEMPLATES_RECOVERY` vers l'asset public
+`http://api:8000/api/v1/auth/recovery-template`, sans donnée utilisateur.
+Le template utilise `SiteURL` + `/auth/reset#token_hash=…` et ne passe pas par
+GET `/verify`. En hébergement, déployer ce même template dans Supabase, fixer
+SiteURL à `PMS_BROWSER_ORIGIN`, allowlister exactement `/auth/reset` et conserver
+l'expiration OTP à 3600 secondes. Vérifier l'email réel avant ouverture du service :
+un template fournisseur par défaut ne respecte pas ce parcours de façade.
+
+Après une réponse incertaine du fournisseur, les sessions restent bloquées pour
+ce sujet. Demander un nouvel email, attendre la fin du lease de 30 s et terminer
+la récupération. Ne pas effacer manuellement la barrière ni rejouer le mot de
+passe. Le navigateur reconnecte l'utilisateur après succès.
+
+La migration additive `0003_account_recovery` ne supprime aucune donnée.
+Son downgrade enlève les barrières et pourrait rendre d'anciennes sessions
+valides : en cas de retour arrière, restaurer une sauvegarde isolée et invalider
+toutes les sessions avant remise en service d'un ancien binaire. Privilégier
+un correctif en avant. Les tests de downgrade utilisent seulement une base jetable.
+
 ## Outbox
 
 La transaction autorisée insère `outbox_events` et ses `outbox_deliveries`.
